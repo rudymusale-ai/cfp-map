@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Utilisateurs</title>
+<link rel="stylesheet" href="theme.css">
+
+<style>
+/* layout tweaks only */
+</style>
+</head>
+
+<body>
+
+<div id="nav-placeholder"></div>
+
+<div class="page">
+  <div class="hero" style="margin-bottom:16px;">
+    <div>
+      <span class="badge">Utilisateurs</span>
+      <h2>Gestion des utilisateurs</h2>
+      <p class="muted">Admin : gestion complète. Superviseur : lecture seule.</p>
+    </div>
+    <button class="btn btn-primary" id="newUserBtn" onclick="location.href='create-user.html'">➕ Nouvel utilisateur</button>
+  </div>
+  <div id="roleBadge" style="margin:6px 0; display:none;">
+    <span class="badge">Lecture seule</span>
+  </div>
+
+<table>
+<thead>
+<tr>
+<th>Nom</th>
+<th>Rôle</th>
+<th>Email</th>
+<th>Statut</th>
+<th>Actions</th>
+</tr>
+</thead>
+
+<tbody id="body"></tbody>
+ </table>
+</div>
+
+<script src="app-data.js"></script>
+<script>
+let _role = "viewer";
+const _token = localStorage.getItem('token');
+const roleReady = _token
+  ? fetch('/me',{headers:{'Authorization':'Bearer '+_token}})
+      .then(r=>r.json())
+      .then(u=>{ _role = (u && u.role) ? u.role : "viewer"; })
+      .catch(()=>{})
+  : Promise.resolve();
+</script>
+<script>
+async function fetchJsonOrFallback(url, fallback) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("bad_status");
+    return await res.json();
+  } catch (e) {
+    return fallback();
+  }
+}
+
+roleReady.then(() => {
+  if (_role === 'superviseur') {
+    const badge = document.getElementById('roleBadge');
+    if (badge) badge.style.display = 'block';
+  }
+  if (_role !== 'admin') {
+    const btn = document.getElementById('newUserBtn');
+    if (btn) btn.style.display = 'none';
+  }
+  return fetchJsonOrFallback('/users', () => AppData.getUsers());
+}).then(data=>{
+ let h='';
+ data.forEach(u=>{
+ const canEdit = _role === 'admin';
+ h+=`
+<tr>
+<td>${u.nom}</td>
+<td>${u.role}</td>
+<td>${u.email}</td>
+<td>${u.statut}</td>
+<td class="table-actions">
+${canEdit ? `<button class="btn btn-ghost" onclick="edit(${u.id})">Modifier</button>` : ``}
+${canEdit ? `<button class="btn btn-ghost" onclick="disable(${u.id})">Désactiver</button>` : ``}
+${canEdit ? `<button class="btn btn-ghost" onclick="del(${u.id})">Supprimer</button>` : ``}
+</td>
+</tr>`;
+ });
+ document.getElementById("body").innerHTML=h;
+});
+
+fetch('nav.html').then(r=>r.text()).then(html=>{
+	document.getElementById('nav-placeholder').innerHTML=html;
+	const logoutBtn = document.getElementById('nav-logout');
+	if(logoutBtn) logoutBtn.addEventListener('click', e=>{e.preventDefault(); localStorage.removeItem('token'); location.href='login.html';});
+	const token = localStorage.getItem('token');
+	if(token){
+		fetch('/me',{headers:{'Authorization':'Bearer '+token}}).then(r=>r.json()).then(u=>{
+			if(u && u.role==='admin'){
+				const ulink=document.getElementById('link-users');
+				const slink=document.getElementById('link-settings');
+				if(ulink) ulink.style.display='inline';
+				if(slink) slink.style.display='inline';
+			}
+		}).catch(()=>{});
+	}
+}).catch(()=>{});
+
+function edit(id){
+ location.href=`create-user.html?id=${id}`;
+}
+
+function disable(id){
+ fetch(`/users/${id}/disable`,{method:'POST'}).then((res)=>{
+   if(!res.ok) throw new Error("bad_status");
+   location.reload();
+ }).catch(()=>{
+   AppData.disableUser(id);
+   location.reload();
+ });
+}
+
+function del(id){
+ if(confirm("Supprimer utilisateur ?"))
+ fetch(`/users/${id}`,{method:'DELETE'}).then((res)=>{
+   if(!res.ok) throw new Error("bad_status");
+   location.reload();
+ }).catch(()=>{
+   AppData.deleteUser(id);
+   location.reload();
+ });
+}
+
+</script>
+
+</body>
+</html>

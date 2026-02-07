@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Carte CFP</title>
+<link rel="stylesheet" href="theme.css">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<style>
+body,html{
+    margin:0;
+    height:100%;
+}
+
+.page{
+    display:grid;
+    grid-template-columns: 260px 1fr;
+    gap:16px;
+    padding:16px;
+    min-height:calc(100vh - 120px);
+    align-items:start;
+    box-sizing:border-box;
+}
+
+#map{
+    width:100%;
+    height:100%;
+    min-height:680px;
+    border-radius:var(--radius);
+    overflow:hidden;
+    box-shadow:var(--shadow-soft);
+    position:relative;
+    border:1px solid var(--border);
+    background:var(--panel);
+}
+
+.sidebar{
+    background:var(--panel);
+    padding:16px;
+    border-radius:var(--radius);
+    height:fit-content;
+    box-shadow:var(--shadow-soft);
+    border:1px solid var(--border);
+    display:grid;
+    gap:10px;
+}
+
+.sidebar h3{
+    margin-top:0;
+}
+
+.sidebar label{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:13px;
+    color:var(--muted);
+}
+.sidebar input[type="checkbox"]{width:auto}
+
+.export{
+    margin-top:10px;
+    width:100%;
+}
+
+@media (max-width: 900px){
+    .page{
+        grid-template-columns:1fr;
+        height:auto;
+    }
+    #map{min-height:420px;}
+}
+
+
+.legend{
+    position:absolute;
+    right:16px;
+    bottom:16px;
+    background:rgba(255,255,255,.95);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:8px 10px;
+    font-size:12px;
+    color:var(--muted);
+    display:flex;
+    gap:10px;
+    align-items:center;
+    box-shadow:var(--shadow-soft);
+    z-index:500;
+    backdrop-filter: blur(6px);
+}
+.legend-item{
+    display:flex;
+    align-items:center;
+    gap:6px;
+}
+.legend-dot{
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    display:inline-block;
+}
+</style>
+</head>
+
+<body>
+
+<div id="nav-placeholder"></div>
+
+<div class="page">
+<div class="sidebar">
+
+<h3>Filtres</h3>
+
+<label><input type="checkbox" id="public" checked> Public</label>
+<label><input type="checkbox" id="prive" checked> Prive</label>
+
+<select id="filiere">
+<option value="">Toutes filieres</option>
+</select>
+
+<select id="sousdivision">
+<option value="">Sous-division</option>
+</select>
+
+<input type="number" id="capacite" placeholder="Capacite min">
+
+<button class="btn btn-ghost export" onclick="exportPDF()">Export carte PDF</button>
+
+</div>
+
+<div id="map">
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot" style="background:#0b3d91"></span>Public</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#12a594"></span>Privé</div>
+  </div>
+</div>
+</div>
+
+<script src="app-data.js"></script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+async function fetchJsonOrFallback(url, fallback) {
+    try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("bad_status");
+        return await res.json();
+    } catch (e) {
+        return fallback();
+    }
+}
+
+// Initialisation carte (centrée Haut-Katanga approximatif)
+const map = L.map('map').setView([-11.6, 27.5], 7);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+}).addTo(map);
+
+let markers=[];
+let activeMarker = null;
+let activeTimer = null;
+
+function populateFilters() {
+    const filiereSelect = document.getElementById("filiere");
+    const sousSelect = document.getElementById("sousdivision");
+
+    fetchJsonOrFallback('/settings/filieres', () => AppData.getSettings("filieres"))
+    .then(list => {
+        filiereSelect.innerHTML = '<option value="">Toutes filieres</option>';
+        (list || []).forEach(f => {
+            const opt = document.createElement("option");
+            opt.value = f.nom;
+            opt.textContent = f.nom;
+            filiereSelect.appendChild(opt);
+        });
+    });
+
+    fetchJsonOrFallback('/settings/sousdivisions', () => AppData.getSettings("sousdivisions"))
+    .then(list => {
+        sousSelect.innerHTML = '<option value="">Toutes sous-division</option>';
+        (list || []).forEach(s => {
+            const opt = document.createElement("option");
+            opt.value = s.nom;
+            opt.textContent = s.nom;
+            sousSelect.appendChild(opt);
+        });
+    });
+}
+
+populateFilters();
+
+// Chargement CFP
+function loadCenters(){
+
+    markers.forEach(m=>map.removeLayer(m));
+    markers=[];
+
+    fetchJsonOrFallback('/centres', () => AppData.getCentres())
+    .then(data=>{
+
+        data.forEach(c=>{
+
+            // filtres
+            if(!document.getElementById("public").checked && c.type==="public") return;
+            if(!document.getElementById("prive").checked && c.type==="prive") return;
+
+            const minCap=document.getElementById("capacite").value;
+            if(minCap && c.capacite < minCap) return;
+
+            const fil=document.getElementById("filiere").value;
+            if(fil && !(c.filieres || []).includes(fil)) return;
+
+            const sd=document.getElementById("sousdivision").value;
+            if(sd && c.sousdivision !== sd) return;
+
+            if (typeof c.lat !== "number" || typeof c.lng !== "number") return;
+
+            const isPublic = c.type === "public";
+            const pinClass = isPublic ? "gm-pin--public" : "gm-pin--private";
+            const icon = L.divIcon({
+                className: "",
+                html: `<div class="gm-pin-wrap ${pinClass}"><div class="gm-pin-core"></div></div>`,
+                iconSize: [26, 26],
+                iconAnchor: [13, 26]
+            });
+            const marker = L.marker([c.lat, c.lng], { icon }).addTo(map);
+
+            marker.bindPopup(`
+<b>${c.nom}</b><br>
+${c.type}<br>
+${c.sousdivision}<br>
+Capacite: ${c.capacite}<br>
+<button class="btn btn-primary btn-xs" onclick="view(${c.id})">Voir</button>
+            `, { closeButton: false, autoClose: false, closeOnClick: false });
+
+            marker.on("mouseover", () => {
+                if (activeTimer) {
+                    clearTimeout(activeTimer);
+                    activeTimer = null;
+                }
+                if (activeMarker && activeMarker !== marker) activeMarker.closePopup();
+                activeMarker = marker;
+                marker.openPopup();
+                activeTimer = setTimeout(() => {
+                    if (activeMarker === marker) {
+                        marker.closePopup();
+                        activeMarker = null;
+                    }
+                }, 3000);
+            });
+
+            markers.push(marker);
+        });
+
+    });
+}
+
+loadCenters();
+
+document.querySelectorAll("input,select").forEach(e=>{
+    e.addEventListener("change",loadCenters);
+});
+
+function view(id){
+    location.href=`centre-view.html?id=${id}`;
+}
+
+// Export PDF (simple)
+function exportPDF(){
+    window.print();
+}
+</script>
+
+<script>
+fetch('nav.html').then(r=>r.text()).then(html=>{
+    document.getElementById('nav-placeholder').innerHTML=html;
+    const logoutBtn = document.getElementById('nav-logout');
+    if(logoutBtn) logoutBtn.addEventListener('click', e=>{e.preventDefault(); localStorage.removeItem('token'); location.href='login.html';});
+    const token = localStorage.getItem('token');
+    if(token){
+        fetch('/me',{headers:{'Authorization':'Bearer '+token}}).then(r=>r.json()).then(u=>{
+            if(u && u.role==='admin'){
+                const ulink=document.getElementById('link-users');
+                const slink=document.getElementById('link-settings');
+                if(ulink) ulink.style.display='inline';
+                if(slink) slink.style.display='inline';
+            }
+        }).catch(()=>{});
+    }
+}).catch(()=>{});
+</script>
+
+</body>
+</html>

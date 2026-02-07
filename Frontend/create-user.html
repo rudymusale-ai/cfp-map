@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Nouveau utilisateur</title>
+<link rel="stylesheet" href="theme.css">
+
+<style>
+.form-shell{max-width:420px}
+</style>
+</head>
+
+<body>
+
+<div id="nav-placeholder"></div>
+
+<div class="page">
+<div class="hero" style="margin-bottom:16px;">
+  <div>
+    <span class="badge">Utilisateurs</span>
+    <h2>Créer / Modifier un utilisateur</h2>
+    <p class="muted">Renseignez l’identité et le rôle.</p>
+  </div>
+</div>
+
+<section class="panel form-stack form-shell" style="margin-top:16px;">
+
+<input id="nom" placeholder="Nom">
+<input id="email" placeholder="Email">
+<input id="password" type="password" placeholder="Mot de passe">
+
+<select id="role">
+<option value="admin">Admin</option>
+<option value="superviseur">Superviseur</option>
+<option value="enqueteur">Enquêteur</option>
+<option value="viewer">Observateur</option>
+</select>
+
+<button class="btn btn-primary" id="saveBtn">Créer</button>
+
+<div id="msg" style="margin-top:10px;color:#333"></div>
+
+</section>
+
+<script src="app-data.js"></script>
+<script>
+async function fetchJsonOrFallback(url, fallback) {
+    try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("bad_status");
+        return await res.json();
+    } catch (e) {
+        return fallback();
+    }
+}
+
+const params = new URLSearchParams(location.search);
+const editId = params.get("id");
+
+if (editId) {
+    fetchJsonOrFallback(`/users/${editId}`, () => AppData.getUsers().find(u => String(u.id) === String(editId)))
+    .then(u => {
+        if (!u) return;
+        document.getElementById('nom').value = u.nom || '';
+        document.getElementById('email').value = u.email || '';
+        document.getElementById('role').value = u.role || 'viewer';
+        document.getElementById('saveBtn').textContent = 'Mettre à jour';
+    });
+}
+
+document.getElementById('saveBtn').addEventListener('click', async function(){
+    const btn = this;
+    const msg = document.getElementById('msg');
+    const nomV = document.getElementById('nom').value.trim();
+    const emailV = document.getElementById('email').value.trim();
+    const passwordV = document.getElementById('password').value;
+    const roleV = document.getElementById('role').value;
+
+    if(!emailV || (!passwordV && !editId)){ msg.style.color='red'; msg.textContent='Email et mot de passe requis'; return; }
+
+    btn.disabled = true;
+    msg.style.color='#333'; msg.textContent='Envoi en cours...';
+    try{
+        const base = (location.protocol === 'file:') ? 'http://localhost:3000' : '';
+        const res = await fetch(base + (editId ? '/users' : '/auth/register'),{
+            method: editId ? 'PUT' : 'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(editId ? { id: editId, nom: nomV || null, email: emailV, role: roleV } : { nom: nomV || null, email: emailV, password: passwordV, role: roleV })
+        });
+        if(!res.ok) throw new Error("bad_status");
+        const text = await res.text();
+        let data;
+        try{ data = JSON.parse(text); } catch(e){ data = { raw: text }; }
+
+        msg.style.color='green';
+        const newId = data && (data.id || data.insertId) ? (data.id || data.insertId) : '';
+        msg.innerHTML = editId ? 'Succès : mise à jour' : 'Succès : création' + (newId ? ' (id: ' + newId + ')' : '') + ' — <a href="login.html">Se connecter</a>';
+    }catch(err){
+        try{
+            if (editId) {
+                AppData.updateUser(editId, { nom: nomV || null, email: emailV, role: roleV });
+                msg.style.color='green';
+                msg.textContent = 'Succès : mise à jour (local)';
+            } else {
+                AppData.addUser({ nom: nomV || null, email: emailV, role: roleV });
+                msg.style.color='green';
+                msg.textContent = 'Succès : création (local)';
+            }
+        } catch (e) {
+            msg.style.color='red'; msg.textContent = 'Erreur: ' + err.message;
+        }
+    } finally { btn.disabled = false; }
+});
+
+</script>
+
+<script>
+fetch('nav.html').then(r=>r.text()).then(html=>{
+    document.getElementById('nav-placeholder').innerHTML=html;
+    const logoutBtn = document.getElementById('nav-logout');
+    if(logoutBtn) logoutBtn.addEventListener('click', e=>{e.preventDefault(); localStorage.removeItem('token'); location.href='login.html';});
+    const token = localStorage.getItem('token');
+    if(token){
+        fetch('/me',{headers:{'Authorization':'Bearer '+token}}).then(r=>r.json()).then(u=>{
+            if(!(u && u.role==='admin')){
+                // optional: prevent non-admins from creating users
+                // keep UI accessible but you can uncomment the redirect below
+                // if(!location.pathname.endsWith('users.html')) location.href='dashboard.html';
+            } else {
+                const ulink=document.getElementById('link-users');
+                const slink=document.getElementById('link-settings');
+                if(ulink) ulink.style.display='inline';
+                if(slink) slink.style.display='inline';
+            }
+        }).catch(()=>{});
+    }
+}).catch(()=>{});
+</script>
+
+</div>
+</body>
+</html>

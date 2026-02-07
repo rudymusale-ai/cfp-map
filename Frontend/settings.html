@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Paramètres système</title>
+<link rel="stylesheet" href="theme.css">
+
+<style>
+.settings-grid{margin-top:16px}
+</style>
+</head>
+
+<body>
+
+<div id="nav-placeholder"></div>
+
+<div class="page">
+<div class="hero" style="margin-bottom:16px;">
+  <div>
+    <span class="badge">Paramètres</span>
+    <h2>Paramètres système</h2>
+    <p class="muted">Gérez les référentiels et l’année active.</p>
+  </div>
+</div>
+
+<div class="grid grid-2 settings-grid">
+
+<!-- Filières -->
+<div class="card">
+<h3>Filières</h3>
+<input id="newFiliere" placeholder="Nouvelle filière">
+<button class="btn btn-primary" onclick="add('filieres')">Ajouter</button>
+<div class="list" id="filieres"></div>
+</div>
+
+<!-- Sous-divisions -->
+<div class="card">
+<h3>Sous-divisions</h3>
+<input id="newSous" placeholder="Nouvelle sous-division">
+<button class="btn btn-primary" onclick="add('sousdivisions')">Ajouter</button>
+<div class="list" id="sousdivisions"></div>
+</div>
+
+<!-- Equipements -->
+<div class="card">
+<h3>Types équipements</h3>
+<input id="newEquip" placeholder="Nouvel équipement">
+<button class="btn btn-primary" onclick="add('equipements')">Ajouter</button>
+<div class="list" id="equipements"></div>
+</div>
+
+<!-- Année active -->
+<div class="card">
+<h3>Année active</h3>
+<input id="annee" type="number">
+<button class="btn btn-primary" onclick="saveYear()">Enregistrer</button>
+</div>
+
+<!-- Sauvegarde -->
+<div class="card">
+<h3>Sauvegarde Base de Données</h3>
+<button class="btn btn-ghost" onclick="backup()">💾 Lancer sauvegarde</button>
+</div>
+</div>
+</div>
+
+<script src="app-data.js"></script>
+<script>
+
+async function fetchJsonOrFallback(url, fallback) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("bad_status");
+    return await res.json();
+  } catch (e) {
+    return fallback();
+  }
+}
+
+function load(){
+
+["filieres","sousdivisions","equipements"].forEach(type=>{
+ fetchJsonOrFallback(`/settings/${type}`, () => AppData.getSettings(type))
+ .then(data=>{
+   let h="";
+   data.forEach(e=>{
+     h+=`
+     <div>
+       ${e.nom}
+       <button class="btn btn-ghost btn-xs" onclick="del('${type}',${e.id})">Supprimer</button>
+     </div>`;
+   });
+   document.getElementById(type).innerHTML=h;
+ });
+});
+
+fetchJsonOrFallback('/settings/year', () => AppData.getYear())
+.then(y=>annee.value=y);
+
+}
+
+load();
+
+fetch('nav.html').then(r=>r.text()).then(html=>{
+  document.getElementById('nav-placeholder').innerHTML=html;
+  const logoutBtn = document.getElementById('nav-logout');
+  if(logoutBtn) logoutBtn.addEventListener('click', e=>{e.preventDefault(); localStorage.removeItem('token'); location.href='login.html';});
+  const token = localStorage.getItem('token');
+  if(token){
+    fetch('/me',{headers:{'Authorization':'Bearer '+token}}).then(r=>r.json()).then(u=>{
+      if(u && u.role==='admin'){
+        const ulink=document.getElementById('link-users');
+        const slink=document.getElementById('link-settings');
+        if(ulink) ulink.style.display='inline';
+        if(slink) slink.style.display='inline';
+      }
+    }).catch(()=>{});
+  }
+}).catch(()=>{});
+
+function add(type){
+
+let val="";
+if(type==="filieres") val=newFiliere.value;
+if(type==="sousdivisions") val=newSous.value;
+if(type==="equipements") val=newEquip.value;
+
+fetch(`/settings/${type}`,{
+ method:"POST",
+ headers:{'Content-Type':'application/json'},
+ body:JSON.stringify({nom:val})
+}).then((res)=>{
+  if(!res.ok) throw new Error("bad_status");
+  load();
+}).catch(()=>{
+  AppData.addSetting(type, val);
+  load();
+});
+
+}
+
+function del(type,id){
+ fetch(`/settings/${type}/${id}`,{method:"DELETE"}).then((res)=>{
+  if(!res.ok) throw new Error("bad_status");
+  load();
+ }).catch(()=>{
+  AppData.deleteSetting(type, id);
+  load();
+});
+}
+
+function saveYear(){
+ fetch('/settings/year',{
+ method:"POST",
+ headers:{'Content-Type':'application/json'},
+ body:JSON.stringify({annee:annee.value})
+ }).then((res)=>{
+  if(!res.ok) throw new Error("bad_status");
+  alert("Année enregistrée");
+ }).catch(()=>{
+  AppData.setYear(annee.value);
+  alert("Année enregistrée (local)");
+ });
+}
+
+function downloadJson(data, filename){
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function backup(){
+ fetch('/settings/backup')
+  .then((res)=>{
+    if(!res.ok) throw new Error("bad_status");
+    return res.json();
+  })
+  .then((data)=>{
+    const stamp = new Date().toISOString().slice(0,10);
+    downloadJson(data, `cfp_backup_${stamp}.json`);
+    alert("Sauvegarde tÃ©lÃ©chargÃ©e");
+  })
+  .catch(()=>{
+    const data = {
+      centres: AppData.getCentres(),
+      users: AppData.getUsers(),
+      settings: {
+        filieres: AppData.getSettings("filieres"),
+        sousdivisions: AppData.getSettings("sousdivisions"),
+        equipements: AppData.getSettings("equipements")
+      },
+      year: AppData.getYear()
+    };
+    const stamp = new Date().toISOString().slice(0,10);
+    downloadJson(data, `cfp_backup_local_${stamp}.json`);
+    alert("Sauvegarde locale tÃ©lÃ©chargÃ©e");
+  });
+}
+
+</script>
+
+</body>
+</html>

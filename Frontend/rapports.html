@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Rapports CFP</title>
+<link rel="stylesheet" href="theme.css">
+
+<style>
+.hidden{
+    display:none;
+}
+</style>
+</head>
+
+<body>
+
+<div id="nav-placeholder"></div>
+
+<div class="page">
+<div class="hero" style="margin-bottom:16px;">
+  <div>
+    <span class="badge">Rapports</span>
+    <h2>Génération des rapports</h2>
+    <p class="muted">Exportez vos données selon le type souhaité.</p>
+  </div>
+</div>
+
+<div class="card">
+
+<h3>Type de rapport</h3>
+
+<div class="actions">
+<button class="btn btn-ghost" onclick="setType('global')">Rapport global</button>
+<button class="btn btn-ghost" onclick="setType('sousdivision')">Rapport par sous-division</button>
+<button class="btn btn-ghost" onclick="setType('filiere')">Rapport par filière</button>
+
+</div>
+
+</div>
+
+<div id="nav-placeholder"></div>
+
+<div class="card hidden" id="filters">
+
+<h3>Filtres</h3>
+
+<select id="sousdivision" class="hidden">
+<option value="">Choisir sous-division</option>
+<option>Kinshasa</option>
+<option>Goma</option>
+</select>
+
+<select id="filiere" class="hidden">
+<option value="">Choisir filière</option>
+<option>Informatique</option>
+<option>Agriculture</option>
+</select>
+
+</div>
+
+<div class="card">
+
+<h3>Format</h3>
+
+<div class="actions">
+<button class="btn btn-primary" onclick="generate('pdf')">PDF</button>
+<button class="btn btn-ghost" onclick="generate('excel')">Excel</button>
+
+</div>
+
+</div>
+</div>
+
+<script src="app-data.js"></script>
+<script>
+async function fetchJsonOrFallback(url, fallback) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("bad_status");
+    return await res.json();
+  } catch (e) {
+    return fallback();
+  }
+}
+
+let type="";
+
+function setType(t){
+
+ type=t;
+
+ document.getElementById("filters").classList.remove("hidden");
+
+ document.getElementById("sousdivision").classList.add("hidden");
+ document.getElementById("filiere").classList.add("hidden");
+
+ if(t==="sousdivision"){
+   document.getElementById("sousdivision").classList.remove("hidden");
+ }
+
+ if(t==="filiere"){
+   document.getElementById("filiere").classList.remove("hidden");
+ }
+}
+
+function generate(format){
+
+ if(!type){
+  alert("Choisir type de rapport");
+  return;
+ }
+
+ const sd=document.getElementById("sousdivision").value;
+ const fil=document.getElementById("filiere").value;
+
+ let url=`/rapports/generate?type=${type}&format=${format}`;
+
+ if(sd) url+=`&sousdivision=${sd}`;
+ if(fil) url+=`&filiere=${fil}`;
+
+ fetch(url).then((res)=>{
+   if(!res.ok) throw new Error("bad_status");
+   window.open(url,"_blank");
+ }).catch(()=>{
+   const html = AppData.generateReportHtml({ type, sousdivision: sd, filiere: fil });
+   const blob = new Blob([html], { type: "text/html" });
+   const localUrl = URL.createObjectURL(blob);
+   window.open(localUrl,"_blank");
+ });
+}
+
+// populate filters from local settings if needed
+fetchJsonOrFallback('/settings/sousdivisions', () => AppData.getSettings("sousdivisions")).then(list=>{
+  const select = document.getElementById("sousdivision");
+  list.forEach(s=>{
+    const opt = document.createElement("option");
+    opt.value = s.nom;
+    opt.textContent = s.nom;
+    select.appendChild(opt);
+  });
+});
+
+fetchJsonOrFallback('/settings/filieres', () => AppData.getSettings("filieres")).then(list=>{
+  const select = document.getElementById("filiere");
+  list.forEach(f=>{
+    const opt = document.createElement("option");
+    opt.value = f.nom;
+    opt.textContent = f.nom;
+    select.appendChild(opt);
+  });
+});
+
+fetch('nav.html').then(r=>r.text()).then(html=>{
+    document.getElementById('nav-placeholder').innerHTML=html;
+    const logoutBtn = document.getElementById('nav-logout');
+    if(logoutBtn) logoutBtn.addEventListener('click', e=>{e.preventDefault(); localStorage.removeItem('token'); location.href='login.html';});
+    const token = localStorage.getItem('token');
+    if(token){
+        fetch('/me',{headers:{'Authorization':'Bearer '+token}}).then(r=>r.json()).then(u=>{
+            if(u && u.role==='admin'){
+                const ulink=document.getElementById('link-users');
+                const slink=document.getElementById('link-settings');
+                if(ulink) ulink.style.display='inline';
+                if(slink) slink.style.display='inline';
+            }
+        }).catch(()=>{});
+    }
+}).catch(()=>{});
+
+</script>
+
+</body>
+</html>

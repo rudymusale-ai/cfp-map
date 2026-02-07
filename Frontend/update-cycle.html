@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Nouveau cycle annuel</title>
+<link rel="stylesheet" href="theme.css">
+
+<style>
+.cycle-card{
+  max-width:480px;
+  margin:0 auto;
+  text-align:center;
+  padding:28px 24px;
+}
+.status{
+  margin-top:15px;
+  color:#15803d;
+}
+</style>
+</head>
+
+<body>
+
+<div id="nav-placeholder"></div>
+
+<div class="page">
+<div class="card cycle-card">
+
+<h2>🔁 Mise à jour annuelle</h2>
+
+<p>
+Cette action va :
+
+<br>✔ Archiver les anciennes données  
+<br>✔ Créer un nouveau cycle  
+<br>✔ Réinitialiser les statistiques  
+</p>
+
+<button class="btn btn-primary" onclick="startCycle()">➡ Démarrer nouveau cycle</button>
+
+<div class="status" id="status"></div>
+
+</div>
+</div>
+
+<script src="app-data.js"></script>
+<script>
+
+function startCycle(){
+
+if(!confirm("Confirmer démarrage nouveau cycle ? Cette action est irréversible.")) return;
+
+fetch('/update-cycle',{
+ method:"POST"
+})
+.then(r=>r.json())
+.then(res=>{
+ document.getElementById("status").innerText =
+ "Nouveau cycle créé : " + res.version;
+})
+.catch(()=>{
+  const version = AppData.incrementCycle();
+  document.getElementById("status").innerText =
+  "Nouveau cycle créé (local) : " + version;
+});
+
+}
+
+</script>
+
+<script>
+fetch('nav.html').then(r=>r.text()).then(html=>{
+	document.getElementById('nav-placeholder').innerHTML=html;
+	const logoutBtn = document.getElementById('nav-logout');
+	if(logoutBtn) logoutBtn.addEventListener('click', e=>{e.preventDefault(); localStorage.removeItem('token'); location.href='login.html';});
+	const token = localStorage.getItem('token');
+	if(token){
+		fetch('/me',{headers:{'Authorization':'Bearer '+token}}).then(r=>r.json()).then(u=>{
+			if(u && u.role==='admin'){
+				const ulink=document.getElementById('link-users');
+				const slink=document.getElementById('link-settings');
+				if(ulink) ulink.style.display='inline';
+				if(slink) slink.style.display='inline';
+			}
+		}).catch(()=>{});
+	}
+}).catch(()=>{});
+</script>
+
+</body>
+</html>

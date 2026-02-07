@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Centres de formation</title>
+<link rel="stylesheet" href="theme.css">
+
+<style>
+.filters{margin:12px 0 16px}
+</style>
+</head>
+
+<body>
+
+
+<div id="nav-placeholder"></div>
+
+<div class="page">
+<div class="hero" style="margin-bottom:16px;">
+  <div>
+    <span class="badge">Centres</span>
+    <h2>Centres de Formation</h2>
+    <p class="muted">Gérez les centres publics et privés du Haut‑Katanga.</p>
+  </div>
+  <button class="btn btn-primary" onclick="location.href='create-centre.html'">➕ Ajouter centre</button>
+</div>
+
+<div class="filters card">
+  <input placeholder="Recherche rapide">
+  <select><option>Territoire</option></select>
+  <select><option>Type</option></select>
+  <select><option>Filière</option></select>
+  <select><option>Capacité</option></select>
+</div>
+
+<table>
+<thead>
+<tr>
+<th>Nom</th>
+<th>Type</th>
+<th>Sous-division</th>
+<th>Filière</th>
+<th>Statut</th>
+<th>Actions</th>
+</tr>
+</thead>
+
+<tbody id="tableBody"></tbody>
+ </table>
+</div>
+
+<script src="app-data.js"></script>
+<script>
+let _role = "viewer";
+let _roleResolved = false;
+const _token = localStorage.getItem('token');
+const roleReady = _token
+  ? fetch('/me',{headers:{'Authorization':'Bearer '+_token}})
+      .then(r=>r.json())
+      .then(u=>{ _role = (u && u.role) ? u.role : "viewer"; _roleResolved = true; })
+      .catch(()=>{ _roleResolved = true; })
+  : Promise.resolve().then(()=>{ _roleResolved = true; });
+</script>
+<script>
+async function fetchJsonOrFallback(url, fallback) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("bad_status");
+    return await res.json();
+  } catch (e) {
+    return fallback();
+  }
+}
+
+ roleReady.then(() => fetchJsonOrFallback('/centres', () => AppData.getCentres()))
+.then(data=>{
+ let html='';
+ data.forEach(c=>{
+ const canDelete = _roleResolved && _role === 'admin';
+ html+=`
+<tr>
+<td>${c.nom}</td>
+<td>${c.type}</td>
+<td>${c.sousdivision}</td>
+<td>${c.filiere}</td>
+<td>${c.statut}</td>
+<td class="table-actions">
+<button class="btn btn-ghost" onclick="view(${c.id})">Voir</button>
+<button class="btn btn-ghost" onclick="edit(${c.id})">Modifier</button>
+${canDelete ? `<button class="btn btn-ghost" onclick="del(${c.id})">Supprimer</button>` : ``}
+</td>
+</tr>`;
+ });
+ document.getElementById("tableBody").innerHTML=html;
+});
+
+function view(id){location.href=`centre-view.html?id=${id}`;}
+function edit(id){location.href=`create-centre.html?id=${id}`;}
+async function del(id){
+  if(!confirm("Supprimer?")) return;
+  try{
+    const res = await fetch(`/centres/${id}`,{method:'DELETE'});
+    if(!res.ok) throw new Error("bad_status");
+  }catch(e){
+    AppData.deleteCentre(id);
+  }
+  location.reload();
+}
+</script>
+
+<script>
+fetch('nav.html').then(r=>r.text()).then(html=>{
+	document.getElementById('nav-placeholder').innerHTML=html;
+	const logoutBtn = document.getElementById('nav-logout');
+	if(logoutBtn) logoutBtn.addEventListener('click', e=>{e.preventDefault(); localStorage.removeItem('token'); location.href='login.html';});
+	const token = localStorage.getItem('token');
+	if(token){
+		fetch('/me',{headers:{'Authorization':'Bearer '+token}}).then(r=>r.json()).then(u=>{
+			if(u && u.role==='admin'){
+				const ulink=document.getElementById('link-users');
+				const slink=document.getElementById('link-settings');
+				if(ulink) ulink.style.display='inline';
+				if(slink) slink.style.display='inline';
+			}
+		}).catch(()=>{});
+	}
+}).catch(()=>{});
+</script>
+
+</body>
+</html>

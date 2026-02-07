@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard</title>
+<link rel="stylesheet" href="theme.css">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<style>
+.widgets{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;}
+.widget{
+  background:linear-gradient(180deg,#ffffff 0%, #f8fafc 100%);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:16px;
+  box-shadow:var(--shadow-soft);
+  position:relative;
+  overflow:hidden;
+  transition:transform .2s ease, box-shadow .2s ease;
+}
+.widget::after{
+  content:"";
+  position:absolute;
+  top:-40px;
+  right:-40px;
+  width:140px;
+  height:140px;
+  opacity:.35;
+  background:radial-gradient(circle, #93c5fd 0%, transparent 70%);
+}
+.widget[data-tone="teal"]::after{background:radial-gradient(circle, #5eead4 0%, transparent 70%);}
+.widget[data-tone="violet"]::after{background:radial-gradient(circle, #c4b5fd 0%, transparent 70%);}
+.widget[data-tone="amber"]::after{background:radial-gradient(circle, #fcd34d 0%, transparent 70%);}
+.widget:hover{transform:translateY(-2px); box-shadow:var(--shadow);}
+.widget h3{margin:0 0 6px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;}
+.widget p{font-size:28px;margin:0;}
+.actions{margin-top:16px;}
+.map{margin-top:16px;height:300px;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--border);}
+#mini-map{height:100%;width:100%;}
+.mini-map-wrap{height:300px;}
+@media(max-width:980px){.widgets{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.widgets{grid-template-columns:1fr}}
+</style>
+</head>
+
+<body>
+
+<div id="nav-placeholder"></div>
+
+<div class="page">
+    <div class="hero">
+        <div>
+            <span class="badge">Tableau de bord</span>
+            <h2>Vue d’ensemble des CFP</h2>
+            <p class="muted">Suivez en temps réel les centres publics et privés du Haut‑Katanga.</p>
+        </div>
+        <div id="role" class="badge" style="background:var(--primary-100);color:var(--primary);">Rôle</div>
+    </div>
+
+    <!-- Widgets -->
+    <div class="widgets" style="margin-top:18px;">
+
+        <div class="widget" data-tone="blue">
+            <h3>Total CFP</h3>
+            <p id="totalCFP">0</p>
+        </div>
+
+        <div class="widget" data-tone="teal">
+            <h3>CFP publics</h3>
+            <p id="publicCFP">0</p>
+        </div>
+
+        <div class="widget" data-tone="violet">
+            <h3>CFP privés</h3>
+            <p id="privateCFP">0</p>
+        </div>
+
+        <div class="widget" data-tone="amber">
+            <h3>Dernière mise à jour</h3>
+            <p id="lastUpdate">---</p>
+        </div>
+
+    </div>
+
+    <!-- Boutons rapides -->
+    <div class="actions">
+        <button class="btn btn-primary" id="newCenter">➕ Nouveau centre</button>
+        <button class="btn btn-ghost" onclick="location.href='carte.html'">🗺️ Carte complète</button>
+        <button class="btn btn-ghost" onclick="location.href='statistiques.html'">📊 Statistiques</button>
+        <button class="btn btn-ghost" onclick="location.href='rapports.html'">📄 Rapports</button>
+    </div>
+
+    <!-- Carte miniature -->
+    <div class="card" style="margin-top:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <h3 style="margin:0;font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;">Mini carte</h3>
+            <span class="badge">Haut-Katanga</span>
+        </div>
+        <div class="mini-map-wrap">
+            <div class="map" id="mini-map" title="Cliquer pour ouvrir la carte complète" style="background:var(--bg);"></div>
+        </div>
+    </div>
+
+</div>
+
+<script src="app-data.js"></script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+
+async function fetchJsonOrFallback(url, fallback) {
+    try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("bad_status");
+        return await res.json();
+    } catch (e) {
+        return fallback();
+    }
+}
+
+function buildPinIcon(type){
+    const isPublic = type === "public";
+    const pinClass = isPublic ? "gm-pin--public" : "gm-pin--private";
+    return L.divIcon({
+        className: "",
+        html: `<div class="gm-pin-wrap ${pinClass}"><div class="gm-pin-core"></div></div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 26]
+    });
+}
+
+// Sécurité: rediriger si non connecté ou rôle invalide
+const _token = localStorage.getItem('token');
+if (!_token) {
+    window.location.href = "login.html";
+}
+
+const _meHeaders = { headers: { 'Authorization': 'Bearer ' + _token } };
+fetch('/me', _meHeaders)
+.then(async res => {
+    if (!res.ok) throw new Error("not_authorized");
+    const data = await res.json().catch(() => null);
+    if (!data || !data.role) throw new Error("no_role");
+    return data;
+})
+.then(user => {
+    document.getElementById("role").innerText = "Rôle : " + user.role;
+
+    // Masquer bouton Nouveau centre si viewer
+    if(user.role === "viewer"){
+        document.getElementById("newCenter").style.display = "none";
+    }
+})
+.catch(() => {
+    localStorage.removeItem('token');
+    window.location.href = "login.html";
+});
+
+// Simulation données dashboard
+fetchJsonOrFallback('/dashboard-data', () => AppData.getDashboardData())
+.then(data => {
+
+    document.getElementById("totalCFP").innerText = data.total;
+    document.getElementById("publicCFP").innerText = data.public;
+    document.getElementById("privateCFP").innerText = data.private;
+    document.getElementById("lastUpdate").innerText = data.updated;
+
+});
+
+document.getElementById("newCenter").addEventListener("click", ()=>{
+        location.href = "create-centre.html";
+});
+
+// Mini carte SIG
+const miniMap = L.map('mini-map', {
+    zoomControl: false,
+    attributionControl: false,
+    scrollWheelZoom: false,
+    doubleClickZoom: false,
+    boxZoom: false,
+    dragging: true,
+    keyboard: false
+}).setView([-11.6, 27.5], 7);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18
+}).addTo(miniMap);
+
+// ensure proper sizing after layout
+setTimeout(() => miniMap.invalidateSize(), 200);
+window.addEventListener('load', () => miniMap.invalidateSize());
+
+fetchJsonOrFallback('/centres', () => AppData.getCentres())
+.then(centres => {
+    const bounds = [];
+    centres.forEach(c => {
+        if (typeof c.lat !== "number" || typeof c.lng !== "number") return;
+        const marker = L.marker([c.lat, c.lng], { icon: buildPinIcon(c.type) }).addTo(miniMap);
+        marker.bindPopup(`<b>${c.nom}</b>`);
+        bounds.push([c.lat, c.lng]);
+    });
+    if (bounds.length) {
+        miniMap.fitBounds(bounds, { padding: [15, 15] });
+    }
+});
+
+document.getElementById("mini-map").addEventListener("click", function () {
+    location.href = "carte.html";
+});
+
+// show/hide admin links (use token if present)
+function showAdminLinksFromToken(){
+    const token = localStorage.getItem('token');
+    if(!token) return;
+    fetch('/me', { headers: { 'Authorization': 'Bearer ' + token } }).then(r=>r.json()).then(u=>{
+        if(u && u.role==='admin'){
+            document.getElementById('link-users').style.display='inline';
+            document.getElementById('link-settings').style.display='inline';
+        }
+    }).catch(()=>{});
+}
+
+// load shared nav then check role
+fetch('nav.html').then(r=>r.text()).then(html=>{
+    const holder = document.getElementById('nav-placeholder');
+    if (holder) holder.innerHTML = html;
+    showAdminLinksFromToken();
+}).catch(()=>{});
+
+</script>
+
+</body>
+</html>

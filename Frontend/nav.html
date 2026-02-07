@@ -1,0 +1,49 @@
+<!-- Shared navigation fragment -->
+<nav class="topnav">
+  <a href="dashboard.html">Dashboard</a>
+  <a href="centres.html">Centres</a>
+  <a href="create-centre.html">Ajouter centre</a>
+  <a href="carte.html">Carte</a>
+  <a href="statistiques.html">Statistiques</a>
+  <a href="rapports.html">Rapports</a>
+  <a href="users.html" id="link-users" style="display:none">Utilisateurs</a>
+  <a href="settings.html" id="link-settings" style="display:none">Paramètres</a>
+  <a href="#" class="right" id="nav-logout">Se déconnecter</a>
+</nav>
+<script>
+  // logout: clear token and go to login
+  document.getElementById('nav-logout').addEventListener('click', function(e){
+    e.preventDefault();
+    localStorage.removeItem('token');
+    location.href='login.html';
+  });
+
+  // highlight active link
+  (function(){
+    const links = document.querySelectorAll('.topnav a[href]');
+    const path = location.pathname.split('/').pop();
+    links.forEach(a=>{
+      const href = a.getAttribute('href');
+      if (href && href === path) a.classList.add('active');
+    });
+  })();
+
+  // session guard: redirect if token missing/expired
+  (function(){
+    const page = location.pathname.split('/').pop() || '';
+    if (page === 'login.html') return;
+    const token = localStorage.getItem('token');
+    if (!token) {
+      location.href = 'login.html';
+      return;
+    }
+    fetch('/me', { headers: { 'Authorization': 'Bearer ' + token } })
+      .then(res => {
+        if (res.status === 401 || res.status === 403) {
+          localStorage.removeItem('token');
+          location.href = 'login.html';
+        }
+      })
+      .catch(() => {});
+  })();
+</script>

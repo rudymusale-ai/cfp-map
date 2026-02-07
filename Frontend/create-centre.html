@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Nouveau Centre</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+.form-sections{margin-bottom:16px}
+</style>
+</head>
+
+<body>
+
+
+<div id="nav-placeholder"></div>
+
+<div class="page">
+<div class="hero" style="margin-bottom:16px;">
+  <div>
+    <span class="badge">Centres</span>
+    <h2>Créer / Modifier un centre</h2>
+    <p class="muted">Renseignez les informations principales et la géolocalisation.</p>
+  </div>
+</div>
+
+<div class="grid grid-2 form-sections">
+<section class="panel form-grid">
+<h3>Informations générales</h3>
+<input id="nom" placeholder="Nom centre">
+<select id="type"><option>Public</option><option>Privé</option></select>
+<input id="sousdivision" placeholder="Sous-division">
+<input id="adresse" placeholder="Adresse">
+</section>
+
+<section class="panel form-grid">
+<h3>Formation</h3>
+<select id="filieres" multiple>
+<option>Informatique</option>
+<option>Agriculture</option>
+<option>Mécanique</option>
+</select>
+
+<select id="mode">
+<option>Initial</option>
+<option>Continue</option>
+<option>Apprentissage</option>
+</select>
+
+<input id="capacite" type="number" placeholder="Capacité">
+</section>
+
+<section class="panel form-grid">
+<h3>Ressources</h3>
+<input id="personnel" type="number" placeholder="Personnel">
+
+<label><input type="checkbox" id="equip-ordinateurs"> Ordinateurs</label>
+<label><input type="checkbox" id="equip-atelier"> Atelier</label>
+
+<label><input type="checkbox" id="equip-eau"> Eau</label>
+<label><input type="checkbox" id="equip-electricite"> Électricité</label>
+</section>
+
+<section class="panel form-grid">
+<h3>Administration</h3>
+<select id="statut">
+<option>Agréé</option>
+<option>Non agréé</option>
+</select>
+
+<input id="agrement" placeholder="Numéro agrément">
+</section>
+
+<section class="panel form-grid">
+<h3>GPS</h3>
+<input id="lat" placeholder="Latitude">
+<input id="lng" placeholder="Longitude">
+<button class="btn btn-ghost btn-sm" onclick="geo()">📍 Obtenir position</button>
+</section>
+
+<section class="panel form-grid">
+<h3>Photos</h3>
+<input type="file" multiple>
+</section>
+
+</div>
+
+<div class="actions" style="margin-top:16px;">
+  <button class="btn btn-primary" onclick="saveCentre()">Enregistrer</button>
+  <button class="btn btn-ghost" onclick="history.back()">Annuler</button>
+</div>
+
+<script src="app-data.js"></script>
+<script>
+function geo(){
+ navigator.geolocation.getCurrentPosition(p=>{
+ document.getElementById("lat").value=p.coords.latitude;
+ document.getElementById("lng").value=p.coords.longitude;
+ });
+}
+</script>
+
+<script>
+async function fetchJsonOrFallback(url, fallback) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("bad_status");
+    return await res.json();
+  } catch (e) {
+    return fallback();
+  }
+}
+
+let pendingFilieres = null;
+
+function renderFilieres(list) {
+  const filiereSelect = document.getElementById("filieres");
+  filiereSelect.innerHTML = "";
+  (list || []).forEach(f => {
+    const name = (typeof f === "string") ? f : f.nom;
+    if (!name) return;
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    filiereSelect.appendChild(opt);
+  });
+}
+
+function applyPendingFilieres() {
+  if (!Array.isArray(pendingFilieres)) return;
+  const filiereSelect = document.getElementById("filieres");
+  Array.from(filiereSelect.options).forEach(opt => {
+    if (pendingFilieres.includes(opt.value)) opt.selected = true;
+  });
+}
+
+const params = new URLSearchParams(location.search);
+const editId = params.get("id");
+
+const filieresPromise = fetchJsonOrFallback('/settings/filieres', () => AppData.getSettings("filieres"))
+  .then(list => {
+    renderFilieres(list);
+    applyPendingFilieres();
+    return list;
+  });
+
+if (editId) {
+  fetchJsonOrFallback(`/centres/${editId}`, () => AppData.getCentre(editId))
+  .then(c => {
+    if (!c) return;
+    document.getElementById("nom").value = c.nom || "";
+    document.getElementById("type").value = c.type === "prive" ? "Privé" : "Public";
+    document.getElementById("sousdivision").value = c.sousdivision || "";
+    document.getElementById("adresse").value = c.adresse || "";
+    document.getElementById("capacite").value = c.capacite || "";
+    document.getElementById("lat").value = c.lat || "";
+    document.getElementById("lng").value = c.lng || "";
+    pendingFilieres = c.filieres || [];
+    applyPendingFilieres();
+    const filiereSelect = document.getElementById("filieres");
+    (c.filieres || []).forEach(f => {
+      Array.from(filiereSelect.options).forEach(opt => {
+        if (opt.value === f) opt.selected = true;
+      });
+    });
+  });
+}
+
+async function saveCentre(){
+  const nom = document.getElementById("nom").value.trim();
+  const typeUi = document.getElementById("type").value;
+  const type = typeUi.toLowerCase().includes("priv") ? "prive" : "public";
+  const sousdivision = document.getElementById("sousdivision").value.trim();
+  const adresse = document.getElementById("adresse").value.trim();
+  const capacite = document.getElementById("capacite").value;
+  const lat = document.getElementById("lat").value;
+  const lng = document.getElementById("lng").value;
+  const filieres = Array.from(document.getElementById("filieres").selectedOptions).map(o => o.value);
+
+  const payload = { nom, type, sousdivision, adresse, capacite, lat, lng, filieres };
+
+  try{
+    const res = await fetch("/centres",{
+      method: editId ? "PUT" : "POST",
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(editId ? { id: editId, ...payload } : payload)
+    });
+    if(!res.ok) throw new Error("bad_status");
+  }catch(e){
+    if (editId) AppData.updateCentre(editId, payload);
+    else AppData.addCentre(payload);
+  }
+  location.href = "centres.html";
+}
+</script>
+
+<script>
+fetch('nav.html').then(r=>r.text()).then(html=>{
+	document.getElementById('nav-placeholder').innerHTML=html;
+	const token = localStorage.getItem('token');
+	if(token){
+		fetch('/me',{headers:{'Authorization':'Bearer '+token}}).then(r=>r.json()).then(u=>{
+			if(u && u.role==='admin'){
+				const ulink=document.getElementById('link-users');
+				const slink=document.getElementById('link-settings');
+				if(ulink) ulink.style.display='inline';
+				if(slink) slink.style.display='inline';
+			}
+		}).catch(()=>{});
+	}
+}).catch(()=>{});
+</script>
+
+</div>
+</body>
+</html>

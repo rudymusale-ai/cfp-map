@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Centre</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<link rel="stylesheet" href="theme.css">
+<style>
+.mini-map{height:220px;border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;}
+#history{padding-left:18px;margin:0;}
+</style>
+</head>
+
+<body>
+
+<div id="nav-placeholder"></div>
+
+<div class="page">
+<div class="hero" style="margin-bottom:16px;">
+  <div>
+    <span class="badge">Centre</span>
+    <h2>Détails du centre</h2>
+    <p class="muted">Informations générales, filières et capacité.</p>
+  </div>
+</div>
+
+<div class="grid grid-2" style="margin-bottom:16px;">
+  <section id="info" class="panel"></section>
+
+  <section class="panel">
+    <div id="mini-map" class="mini-map"></div>
+  </section>
+</div>
+
+<section id="filieres" class="panel" style="margin-bottom:16px;"></section>
+
+<section id="capacites" class="panel" style="margin-bottom:16px;"></section>
+
+<section id="ressources" class="panel" style="margin-bottom:16px;"></section>
+
+<section class="panel">
+  <h3>Historique</h3>
+  <ul id="history"></ul>
+</section>
+
+<script src="app-data.js"></script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+async function fetchJsonOrFallback(url, fallback) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("bad_status");
+    return await res.json();
+  } catch (e) {
+    return fallback();
+  }
+}
+
+function buildPinIcon(type){
+  const isPublic = type === "public";
+  const pinClass = isPublic ? "gm-pin--public" : "gm-pin--private";
+  return L.divIcon({
+    className: "",
+    html: `<div class="gm-pin-wrap ${pinClass}"><div class="gm-pin-core"></div></div>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 26]
+  });
+}
+
+const params = new URLSearchParams(location.search);
+const id = params.get("id");
+
+fetchJsonOrFallback(`/centres/${id}`, () => AppData.getCentre(id))
+.then(c=>{
+  if(!c) return;
+  document.getElementById("info").innerHTML=`
+<b>${c.nom}</b><br>
+${c.adresse || ""}<br>
+${c.type}
+`;
+
+  document.getElementById("filieres").innerText=(c.filieres || []).join(", ");
+  document.getElementById("capacites").innerText=c.capacite || "";
+
+  const map = L.map('mini-map', {
+    zoomControl: false,
+    attributionControl: false,
+    scrollWheelZoom: false
+  }).setView([c.lat || -4.5, c.lng || 15.5], 8);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18
+  }).addTo(map);
+
+  if (typeof c.lat === "number" && typeof c.lng === "number") {
+    L.marker([c.lat, c.lng], { icon: buildPinIcon(c.type) }).addTo(map);
+  }
+});
+</script>
+
+<script>
+fetch('nav.html').then(r=>r.text()).then(html=>{
+	document.getElementById('nav-placeholder').innerHTML=html;
+	const logoutBtn = document.getElementById('nav-logout');
+	if(logoutBtn) logoutBtn.addEventListener('click', e=>{e.preventDefault(); localStorage.removeItem('token'); location.href='login.html';});
+	const token = localStorage.getItem('token');
+	if(token){
+		fetch('/me',{headers:{'Authorization':'Bearer '+token}}).then(r=>r.json()).then(u=>{
+			if(u && u.role==='admin'){
+				const ulink=document.getElementById('link-users');
+				const slink=document.getElementById('link-settings');
+				if(ulink) ulink.style.display='inline';
+				if(slink) slink.style.display='inline';
+			}
+		}).catch(()=>{});
+	}
+}).catch(()=>{});
+</script>
+</div>
+</body>
+</html>

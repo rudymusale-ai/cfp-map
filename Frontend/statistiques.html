@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Statistiques CFP</title>
+<link rel="stylesheet" href="theme.css">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+.filters{margin:12px 0 16px}
+</style>
+</head>
+
+<body>
+
+<div id="nav-placeholder"></div>
+
+<div class="page">
+<div class="hero" style="margin-bottom:16px;">
+  <div>
+    <span class="badge">Statistiques</span>
+    <h2>Tableau de bord analytique</h2>
+    <p class="muted">Analysez la répartition et les capacités.</p>
+  </div>
+</div>
+
+<div class="filters card">
+<select id="sousdivision">
+<option value="">Toutes sous-divisions</option>
+</select>
+
+<input type="month" id="periode">
+
+<button class="btn btn-primary" onclick="loadStats()">Actualiser</button>
+</div>
+
+<div class="grid grid-2">
+
+<div class="card">
+<h4>CFP par territoire</h4>
+<canvas id="territoire"></canvas>
+</div>
+<div class="card">
+<h4>Public / Privé</h4>
+<canvas id="type"></canvas>
+</div>
+
+<div class="card">
+<h4>Filières dominantes</h4>
+<canvas id="filieres"></canvas>
+</div>
+
+<div class="card">
+<h4>Capacités totales</h4>
+<canvas id="capacites"></canvas>
+</div>
+
+<div class="card">
+<h4>Zones non couvertes</h4>
+<ul id="zones"></ul>
+</div>
+
+</div>
+
+</div>
+
+<script src="app-data.js"></script>
+<script>
+
+async function fetchJsonOrFallback(url, fallback) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("bad_status");
+    return await res.json();
+  } catch (e) {
+    return fallback();
+  }
+}
+
+let charts=[];
+
+function clearCharts(){
+ charts.forEach(c=>c.destroy());
+ charts=[];
+}
+
+function loadStats(){
+
+clearCharts();
+
+const sd=document.getElementById("sousdivision").value;
+const p=document.getElementById("periode").value;
+
+fetchJsonOrFallback(`/stats?sousdivision=${sd}&periode=${p}`, () => AppData.getStatsData({ sousdivision: sd, periode: p }))
+.then(data=>{
+
+charts.push(new Chart(document.getElementById("territoire"),{
+ type:'bar',
+ data:{
+ labels:data.territoires.labels,
+ datasets:[{data:data.territoires.values}]
+ }
+}));
+
+charts.push(new Chart(document.getElementById("type"),{
+ type:'pie',
+ data:{
+ labels:["Public","Privé"],
+ datasets:[{data:[data.public,data.prive]}]
+ }
+}));
+
+charts.push(new Chart(document.getElementById("filieres"),{
+ type:'doughnut',
+ data:{
+ labels:data.filieres.labels,
+ datasets:[{data:data.filieres.values}]
+ }
+}));
+
+charts.push(new Chart(document.getElementById("capacites"),{
+ type:'line',
+ data:{
+ labels:data.capacites.labels,
+ datasets:[{data:data.capacites.values}]
+ }
+}));
+
+// zones non couvertes
+let z="";
+data.zones.forEach(e=>z+=`<li>${e}</li>`);
+document.getElementById("zones").innerHTML=z;
+
+});
+}
+
+// chargement initial
+fetchJsonOrFallback('/settings/sousdivisions', () => AppData.getSettings("sousdivisions")).then(list=>{
+  const select = document.getElementById("sousdivision");
+  list.forEach(s=>{
+    const opt = document.createElement("option");
+    opt.value = s.nom;
+    opt.textContent = s.nom;
+    select.appendChild(opt);
+  });
+  loadStats();
+});
+
+fetch('nav.html').then(r=>r.text()).then(html=>{
+    document.getElementById('nav-placeholder').innerHTML=html;
+    const logoutBtn = document.getElementById('nav-logout');
+    if(logoutBtn) logoutBtn.addEventListener('click', e=>{e.preventDefault(); localStorage.removeItem('token'); location.href='login.html';});
+    const token = localStorage.getItem('token');
+    if(token){
+        fetch('/me',{headers:{'Authorization':'Bearer '+token}}).then(r=>r.json()).then(u=>{
+            if(u && u.role==='admin'){
+                const ulink=document.getElementById('link-users');
+                const slink=document.getElementById('link-settings');
+                if(ulink) ulink.style.display='inline';
+                if(slink) slink.style.display='inline';
+            }
+        }).catch(()=>{});
+    }
+}).catch(()=>{});
+
+</script>
+
+</body>
+</html>

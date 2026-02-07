@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Historique & Logs</title>
+<link rel="stylesheet" href="theme.css">
+
+<style>
+.filters{margin:12px 0 16px}
+</style>
+</head>
+
+<body>
+
+<div id="nav-placeholder"></div>
+
+<div class="page">
+<div class="hero" style="margin-bottom:16px;">
+  <div>
+    <span class="badge">Historique</span>
+    <h2>Historique & Logs</h2>
+    <p class="muted">Suivi des actions et opérations.</p>
+  </div>
+</div>
+
+<div class="filters card">
+<input id="user" placeholder="Utilisateur">
+<select id="action">
+<option value="">Toutes actions</option>
+<option>CREATE</option>
+<option>UPDATE</option>
+<option>DELETE</option>
+<option>LOGIN</option>
+</select>
+
+<input type="date" id="date">
+
+<button class="btn btn-primary" onclick="load()">Filtrer</button>
+</div>
+
+<table>
+<thead>
+<tr>
+<th>Utilisateur</th>
+<th>Action</th>
+<th>Cible</th>
+<th>Date</th>
+</tr>
+</thead>
+
+<tbody id="body"></tbody>
+ </table>
+</div>
+
+<script src="app-data.js"></script>
+<script>
+async function fetchJsonOrFallback(url, fallback) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("bad_status");
+    return await res.json();
+  } catch (e) {
+    return fallback();
+  }
+}
+
+function load(){
+
+const u=user.value;
+const a=action.value;
+const d=date.value;
+
+fetchJsonOrFallback(`/logs?user=${u}&action=${a}&date=${d}`, () => AppData.getLogs({ user: u, action: a, date: d }))
+.then(data=>{
+
+ let h="";
+ data.forEach(l=>{
+ h+=`
+<tr>
+<td>${l.user}</td>
+<td>${l.action}</td>
+<td>${l.target}</td>
+<td>${new Date(l.date).toLocaleString()}</td>
+</tr>`;
+ });
+
+ document.getElementById("body").innerHTML=h;
+});
+}
+
+load();
+
+fetch('nav.html').then(r=>r.text()).then(html=>{
+	document.getElementById('nav-placeholder').innerHTML=html;
+	const logoutBtn = document.getElementById('nav-logout');
+	if(logoutBtn) logoutBtn.addEventListener('click', e=>{e.preventDefault(); localStorage.removeItem('token'); location.href='login.html';});
+	const token = localStorage.getItem('token');
+	if(token){
+		fetch('/me',{headers:{'Authorization':'Bearer '+token}}).then(r=>r.json()).then(u=>{
+			if(u && u.role==='admin'){
+				const ulink=document.getElementById('link-users');
+				const slink=document.getElementById('link-settings');
+				if(ulink) ulink.style.display='inline';
+				if(slink) slink.style.display='inline';
+			}
+		}).catch(()=>{});
+	}
+}).catch(()=>{});
+
+</script>
+
+</body>
+</html>
