@@ -33,7 +33,7 @@
 
 <script src="app-data.js"></script>
 <script>
-const API_BASE = "https://cfp-map-production-232a.up.railway.app";
+const API_URL = "https://cfp-map-production-232a.up.railway.app";
 
 function mapServerError(raw) {
     const key = String(raw || "").trim();
@@ -58,7 +58,7 @@ function login() {
         return;
     }
 
-    fetch(API_BASE + "/auth/login", {
+    fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"

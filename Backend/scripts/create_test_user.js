@@ -8,9 +8,12 @@
     const role = process.env.TEST_ROLE || 'admin';
 
     console.log('Registering', email);
+    const headers = { 'Content-Type': 'application/json' };
+    if (process.env.ADMIN_TOKEN) headers.Authorization = 'Bearer ' + process.env.ADMIN_TOKEN;
+    if (process.env.BOOTSTRAP_KEY) headers['x-bootstrap-key'] = process.env.BOOTSTRAP_KEY;
     const r = await fetch(base + '/auth/register', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ nom, email, password, role })
     });
     const regText = await r.text();

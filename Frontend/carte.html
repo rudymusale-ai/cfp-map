@@ -152,6 +152,8 @@ async function fetchJsonOrFallback(url, fallback) {
     }
 }
 
+const esc = window.escapeHtml || ((v) => v);
+
 // Initialisation carte (centrée Haut-Katanga approximatif)
 const map = L.map('map').setView([-11.6, 27.5], 7);
 
@@ -229,11 +231,11 @@ function loadCenters(){
             const marker = L.marker([c.lat, c.lng], { icon }).addTo(map);
 
             marker.bindPopup(`
-<b>${c.nom}</b><br>
-${c.type}<br>
-${c.sousdivision}<br>
-Capacite: ${c.capacite}<br>
-<button class="btn btn-primary btn-xs" onclick="view(${c.id})">Voir</button>
+<b>${esc(c.nom)}</b><br>
+${esc(c.type)}<br>
+${esc(c.sousdivision)}<br>
+Capacite: ${esc(c.capacite)}<br>
+<button class="btn btn-primary btn-xs" onclick="view(${Number(c.id) || 0})">Voir</button>
             `, { closeButton: false, autoClose: false, closeOnClick: false });
 
             marker.on("mouseover", () => {

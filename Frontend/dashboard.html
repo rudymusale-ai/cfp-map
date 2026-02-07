@@ -118,6 +118,8 @@ async function fetchJsonOrFallback(url, fallback) {
     }
 }
 
+const esc = window.escapeHtml || ((v) => v);
+
 function buildPinIcon(type){
     const isPublic = type === "public";
     const pinClass = isPublic ? "gm-pin--public" : "gm-pin--private";
@@ -196,7 +198,7 @@ fetchJsonOrFallback('/centres', () => AppData.getCentres())
     centres.forEach(c => {
         if (typeof c.lat !== "number" || typeof c.lng !== "number") return;
         const marker = L.marker([c.lat, c.lng], { icon: buildPinIcon(c.type) }).addTo(miniMap);
-        marker.bindPopup(`<b>${c.nom}</b>`);
+        marker.bindPopup(`<b>${esc(c.nom)}</b>`);
         bounds.push([c.lat, c.lng]);
     });
     if (bounds.length) {

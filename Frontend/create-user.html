@@ -54,6 +54,9 @@ async function fetchJsonOrFallback(url, fallback) {
     }
 }
 
+const API_URL = "https://cfp-map-production-232a.up.railway.app";
+const esc = window.escapeHtml || ((v) => v);
+
 const params = new URLSearchParams(location.search);
 const editId = params.get("id");
 
@@ -81,7 +84,7 @@ document.getElementById('saveBtn').addEventListener('click', async function(){
     btn.disabled = true;
     msg.style.color='#333'; msg.textContent='Envoi en cours...';
     try{
-        const base = (location.protocol === 'file:') ? 'https://cfp-map-production-232a.up.railway.app' : '';
+        const base = (location.protocol === 'file:') ? API_URL : '';
         const res = await fetch(base + (editId ? '/users' : '/auth/register'),{
             method: editId ? 'PUT' : 'POST',
             headers:{'Content-Type':'application/json'},
@@ -94,7 +97,8 @@ document.getElementById('saveBtn').addEventListener('click', async function(){
 
         msg.style.color='green';
         const newId = data && (data.id || data.insertId) ? (data.id || data.insertId) : '';
-        msg.innerHTML = editId ? 'Succès : mise à jour' : 'Succès : création' + (newId ? ' (id: ' + newId + ')' : '') + ' — <a href="login.html">Se connecter</a>';
+        const safeId = newId ? esc(newId) : '';
+        msg.innerHTML = editId ? 'Succès : mise à jour' : 'Succès : création' + (newId ? ' (id: ' + safeId + ')' : '') + ' — <a href="login.html">Se connecter</a>';
     }catch(err){
         try{
             if (editId) {
@@ -140,3 +144,4 @@ fetch('nav.html').then(r=>r.text()).then(html=>{
 </div>
 </body>
 </html>
+

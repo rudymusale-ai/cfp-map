@@ -7,11 +7,28 @@ const { pool } = require('./db');
 const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
+const jwtSecret = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev_secret');
+const allowedOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
 
-app.use(express.json());
+if (!jwtSecret) {
+  throw new Error('JWT_SECRET is required in production');
+}
+
+app.disable('x-powered-by');
+app.use(express.json({ limit: '1mb' }));
 
 app.use(cors({
-  origin: "*"
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.length === 0) {
+      if (process.env.NODE_ENV === 'production') return cb(null, false);
+      return cb(null, true);
+    }
+    return cb(null, allowedOrigins.includes(origin));
+  }
 }));
 
 // Serve the Frontend folder so HTML is available on the same origin (http://localhost:3000)
@@ -45,27 +62,63 @@ async function logAction(userId, action) {
   }
 }
 
+async function isFirstUser() {
+  const [rows] = await pool.query('SELECT COUNT(*) AS total FROM users');
+  return rows && rows[0] && rows[0].total === 0;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeCsvValue(value) {
+  const raw = String(value ?? '');
+  const safe = /^[=+\-@]/.test(raw) ? "'" + raw : raw;
+  return '"' + safe.replace(/"/g, '""') + '"';
+}
+
 // Register (creates role if missing)
 app.post('/auth/register', async (req, res) => {
   const { nom, email, password, role } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'email & password required' });
   try {
-    // ensure role exists
-    let roleId = null;
-    if (role) {
-      const [r] = await pool.query('SELECT id FROM roles WHERE name = ?', [role]);
-      if (r.length) roleId = r[0].id;
-      else {
-        const [ins] = await pool.query('INSERT INTO roles (name) VALUES (?)', [role]);
-        roleId = ins.insertId;
+    const firstUser = await isFirstUser();
+    const roleName = role || 'viewer';
+    const allowedRoles = new Set(['admin', 'superviseur', 'enqueteur', 'viewer']);
+    if (!allowedRoles.has(roleName)) return res.status(400).json({ error: 'invalid_role' });
+
+    if (firstUser) {
+      const bootstrapKey = process.env.BOOTSTRAP_KEY;
+      if (bootstrapKey) {
+        const provided = req.headers['x-bootstrap-key'];
+        if (provided !== bootstrapKey) return res.status(403).json({ error: 'bootstrap_forbidden' });
       }
+    } else {
+      const auth = req.headers['authorization'];
+      const token = auth && auth.split(' ')[1];
+      if (!token) return res.status(401).json({ error: 'no_token' });
+      let user;
+      try {
+        user = jwt.verify(token, jwtSecret);
+      } catch (e) {
+        return res.status(403).json({ error: 'invalid_token' });
+      }
+      if (!user || user.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
     }
+
+    const roleId = await ensureRoleId(roleName);
 
     const hash = await bcrypt.hash(password, 10);
     const [result] = await pool.query('INSERT INTO users (role_id, nom, email, password) VALUES (?,?,?,?)', [roleId, nom || null, email, hash]);
     return res.json({ id: result.insertId });
   } catch (err) {
     console.error(err);
+    if (err && err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'email_exists' });
     return res.status(500).json({ error: 'register_failed' });
   }
 });
@@ -85,7 +138,7 @@ app.post('/auth/login', async (req, res) => {
     const roleName = (roles && roles[0] && roles[0].name) ? roles[0].name : 'viewer';
 
     const payload = { id: u.id, nom: u.nom, email: u.email, role: roleName };
-    const token = jwt.sign(payload, process.env.JWT_SECRET || 'dev_secret', { expiresIn: '8h' });
+    const token = jwt.sign(payload, jwtSecret, { expiresIn: '8h' });
     return res.json({ token });
   } catch (err) {
     console.error(err);
@@ -97,7 +150,7 @@ function authenticateToken(req, res, next) {
   const auth = req.headers['authorization'];
   const token = auth && auth.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'no_token' });
-  jwt.verify(token, process.env.JWT_SECRET || 'dev_secret', (err, user) => {
+  jwt.verify(token, jwtSecret, (err, user) => {
     if (err) return res.status(403).json({ error: 'invalid_token' });
     req.user = user;
     next();
@@ -118,29 +171,13 @@ function requireRole(roles) {
 app.get('/me', async (req, res) => {
   const auth = req.headers['authorization'];
   const token = auth && auth.split(' ')[1];
-  if (token) {
-    try {
-      const user = jwt.verify(token, process.env.JWT_SECRET || 'dev_secret');
-      return res.json({ id: user.id, nom: user.nom, email: user.email, role: user.role });
-    } catch (e) {
-      return res.status(401).json({ error: 'invalid_token' });
-    }
-  }
-
-  // fallback to first user in DB
+  if (!token) return res.status(401).json({ error: 'no_token' });
   try {
-    const [rows] = await pool.query('SELECT id, nom, email, role_id FROM users LIMIT 1');
-    if (rows && rows.length) {
-      const u = rows[0];
-      const [roles] = await pool.query('SELECT name FROM roles WHERE id = ?', [u.role_id]);
-      const role = (roles && roles[0] && roles[0].name) ? roles[0].name : process.env.DEFAULT_ROLE || 'viewer';
-      return res.json({ id: u.id, nom: u.nom, email: u.email, role });
-    }
+    const user = jwt.verify(token, jwtSecret);
+    return res.json({ id: user.id, nom: user.nom, email: user.email, role: user.role });
   } catch (e) {
-    // ignore
+    return res.status(401).json({ error: 'invalid_token' });
   }
-
-  return res.json({ id: 0, nom: 'Invité', email: '', role: process.env.DEFAULT_ROLE || 'viewer' });
 });
 
 // Dashboard stats
@@ -690,15 +727,22 @@ app.get('/rapports/generate', authenticateToken, async (req, res) => {
 
     if (format === 'excel') {
       const header = 'Nom,Type,Sous-division,Capacite\n';
-      const lines = rows.map(r => `${r.nom},${r.type},${r.sousdivision || ''},${r.capacite || 0}`).join('\n');
+      const lines = rows
+        .map(r => [
+          escapeCsvValue(r.nom),
+          escapeCsvValue(r.type),
+          escapeCsvValue(r.sousdivision || ''),
+          escapeCsvValue(r.capacite || 0)
+        ].join(','))
+        .join('\n');
       res.setHeader('Content-Type', 'text/csv');
       return res.send(header + lines);
     }
 
-    let html = `<h2>Rapport CFP</h2><p>Type: ${type || 'global'}</p>`;
+    let html = `<h2>Rapport CFP</h2><p>Type: ${escapeHtml(type || 'global')}</p>`;
     html += `<table border="1" cellpadding="6" cellspacing="0"><thead><tr><th>Nom</th><th>Type</th><th>Sous-division</th><th>Capacite</th></tr></thead><tbody>`;
     rows.forEach(r => {
-      html += `<tr><td>${r.nom}</td><td>${r.type}</td><td>${r.sousdivision || ''}</td><td>${r.capacite || 0}</td></tr>`;
+      html += `<tr><td>${escapeHtml(r.nom)}</td><td>${escapeHtml(r.type)}</td><td>${escapeHtml(r.sousdivision || '')}</td><td>${escapeHtml(r.capacite || 0)}</td></tr>`;
     });
     html += `</tbody></table>`;
     res.setHeader('Content-Type', 'text/html');
@@ -725,3 +769,5 @@ app.post('/update-cycle', authenticateToken, requireRole(['admin']), async (req,
 });
 
 app.listen(port, () => console.log(`Server listening on http://localhost:${port}`));
+
+

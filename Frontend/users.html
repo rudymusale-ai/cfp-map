@@ -64,6 +64,8 @@ async function fetchJsonOrFallback(url, fallback) {
   }
 }
 
+const esc = window.escapeHtml || ((v) => v);
+
 roleReady.then(() => {
   if (_role === 'superviseur') {
     const badge = document.getElementById('roleBadge');
@@ -80,14 +82,14 @@ roleReady.then(() => {
  const canEdit = _role === 'admin';
  h+=`
 <tr>
-<td>${u.nom}</td>
-<td>${u.role}</td>
-<td>${u.email}</td>
-<td>${u.statut}</td>
+<td>${esc(u.nom)}</td>
+<td>${esc(u.role)}</td>
+<td>${esc(u.email)}</td>
+<td>${esc(u.statut)}</td>
 <td class="table-actions">
-${canEdit ? `<button class="btn btn-ghost" onclick="edit(${u.id})">Modifier</button>` : ``}
-${canEdit ? `<button class="btn btn-ghost" onclick="disable(${u.id})">Désactiver</button>` : ``}
-${canEdit ? `<button class="btn btn-ghost" onclick="del(${u.id})">Supprimer</button>` : ``}
+${canEdit ? `<button class="btn btn-ghost" onclick="edit(${Number(u.id) || 0})">Modifier</button>` : ``}
+${canEdit ? `<button class="btn btn-ghost" onclick="disable(${Number(u.id) || 0})">Désactiver</button>` : ``}
+${canEdit ? `<button class="btn btn-ghost" onclick="del(${Number(u.id) || 0})">Supprimer</button>` : ``}
 </td>
 </tr>`;
  });
@@ -140,3 +142,4 @@ function del(id){
 
 </body>
 </html>
+

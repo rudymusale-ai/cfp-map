@@ -1,4 +1,16 @@
 (function () {
+  const API_URL = "https://cfp-map-production-232a.up.railway.app";
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+  if (typeof window !== "undefined") {
+    window.escapeHtml = escapeHtml;
+  }
   // Automatically attach JWT to same-origin API calls
   if (typeof window !== "undefined" && window.fetch && !window.__authFetchWrapped) {
     const originalFetch = window.fetch.bind(window);
@@ -13,6 +25,7 @@
 
       const isRelative = url.startsWith("/");
       const isSameOrigin = !url.startsWith("http://") && !url.startsWith("https://");
+      const isApiAbsolute = url.startsWith(API_URL);
       const isLiveServer = (location.port === "5500");
       const apiPrefixes = [
         "/auth",
@@ -29,10 +42,10 @@
       ];
       const isApiCall = isRelative && apiPrefixes.some(p => url.startsWith(p));
       if (isLiveServer && isApiCall) {
-        url = "https://cfp-map-production-232a.up.railway.app" + url;
+        url = API_URL + url;
       }
 
-      if ((isRelative || isSameOrigin) && token && !headers.has("Authorization")) {
+      if ((isRelative || isSameOrigin || isApiAbsolute) && token && !headers.has("Authorization")) {
         headers.set("Authorization", "Bearer " + token);
       }
 
@@ -48,7 +61,7 @@
       banner.style.cssText = "position:fixed;bottom:12px;right:12px;background:#111827;color:#fff;padding:8px 10px;border-radius:8px;font-size:12px;z-index:9999;opacity:.9;display:flex;gap:8px;align-items:center";
 
       const text = document.createElement("span");
-      text.textContent = "Mode Live Server : API -> https://cfp-map-production-232a.up.railway.app";
+      text.textContent = "Mode Live Server : API -> " + API_URL;
 
       const closeBtn = document.createElement("button");
       closeBtn.type = "button";
@@ -394,17 +407,18 @@
       return true;
     });
 
+    const esc = escapeHtml;
     const rows = centres
       .map(
         (c) =>
           "<tr><td>" +
-          c.nom +
+          esc(c.nom) +
           "</td><td>" +
-          c.type +
+          esc(c.type) +
           "</td><td>" +
-          c.sousdivision +
+          esc(c.sousdivision) +
           "</td><td>" +
-          c.capacite +
+          esc(c.capacite) +
           "</td></tr>"
       )
       .join("");
@@ -412,7 +426,7 @@
     return (
       "<h2>Rapport CFP</h2>" +
       "<p>Type: " +
-      options.type +
+      esc(options.type) +
       "</p>" +
       "<table border='1' cellpadding='6' cellspacing='0'>" +
       "<thead><tr><th>Nom</th><th>Type</th><th>Sous-division</th><th>Capacite</th></tr></thead>" +

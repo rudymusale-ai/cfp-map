@@ -77,6 +77,8 @@ async function fetchJsonOrFallback(url, fallback) {
   }
 }
 
+const esc = window.escapeHtml || ((v) => v);
+
 function load(){
 
 ["filieres","sousdivisions","equipements"].forEach(type=>{
@@ -84,10 +86,11 @@ function load(){
  .then(data=>{
    let h="";
    data.forEach(e=>{
+     const id = Number(e.id) || 0;
      h+=`
      <div>
-       ${e.nom}
-       <button class="btn btn-ghost btn-xs" onclick="del('${type}',${e.id})">Supprimer</button>
+       ${esc(e.nom)}
+       <button class="btn btn-ghost btn-xs" onclick="del('${type}',${id})">Supprimer</button>
      </div>`;
    });
    document.getElementById(type).innerHTML=h;

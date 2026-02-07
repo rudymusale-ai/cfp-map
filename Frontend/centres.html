@@ -72,6 +72,8 @@ async function fetchJsonOrFallback(url, fallback) {
   }
 }
 
+const esc = window.escapeHtml || ((v) => v);
+
  roleReady.then(() => fetchJsonOrFallback('/centres', () => AppData.getCentres()))
 .then(data=>{
  let html='';
@@ -79,15 +81,15 @@ async function fetchJsonOrFallback(url, fallback) {
  const canDelete = _roleResolved && _role === 'admin';
  html+=`
 <tr>
-<td>${c.nom}</td>
-<td>${c.type}</td>
-<td>${c.sousdivision}</td>
-<td>${c.filiere}</td>
-<td>${c.statut}</td>
+<td>${esc(c.nom)}</td>
+<td>${esc(c.type)}</td>
+<td>${esc(c.sousdivision)}</td>
+<td>${esc(c.filiere)}</td>
+<td>${esc(c.statut)}</td>
 <td class="table-actions">
-<button class="btn btn-ghost" onclick="view(${c.id})">Voir</button>
-<button class="btn btn-ghost" onclick="edit(${c.id})">Modifier</button>
-${canDelete ? `<button class="btn btn-ghost" onclick="del(${c.id})">Supprimer</button>` : ``}
+<button class="btn btn-ghost" onclick="view(${Number(c.id) || 0})">Voir</button>
+<button class="btn btn-ghost" onclick="edit(${Number(c.id) || 0})">Modifier</button>
+${canDelete ? `<button class="btn btn-ghost" onclick="del(${Number(c.id) || 0})">Supprimer</button>` : ``}
 </td>
 </tr>`;
  });

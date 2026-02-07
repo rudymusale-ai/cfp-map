@@ -113,10 +113,12 @@ function generate(format){
  const sd=document.getElementById("sousdivision").value;
  const fil=document.getElementById("filiere").value;
 
- let url=`/rapports/generate?type=${type}&format=${format}`;
+ const typeEnc = encodeURIComponent(type);
+ const formatEnc = encodeURIComponent(format);
+ let url=`/rapports/generate?type=${typeEnc}&format=${formatEnc}`;
 
- if(sd) url+=`&sousdivision=${sd}`;
- if(fil) url+=`&filiere=${fil}`;
+ if(sd) url+=`&sousdivision=${encodeURIComponent(sd)}`;
+ if(fil) url+=`&filiere=${encodeURIComponent(fil)}`;
 
  fetch(url).then((res)=>{
    if(!res.ok) throw new Error("bad_status");

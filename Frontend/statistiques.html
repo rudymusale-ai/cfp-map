@@ -78,6 +78,8 @@ async function fetchJsonOrFallback(url, fallback) {
   }
 }
 
+const esc = window.escapeHtml || ((v) => v);
+
 let charts=[];
 
 function clearCharts(){
@@ -91,8 +93,9 @@ clearCharts();
 
 const sd=document.getElementById("sousdivision").value;
 const p=document.getElementById("periode").value;
+const qs = `sousdivision=${encodeURIComponent(sd)}&periode=${encodeURIComponent(p)}`;
 
-fetchJsonOrFallback(`/stats?sousdivision=${sd}&periode=${p}`, () => AppData.getStatsData({ sousdivision: sd, periode: p }))
+fetchJsonOrFallback(`/stats?${qs}`, () => AppData.getStatsData({ sousdivision: sd, periode: p }))
 .then(data=>{
 
 charts.push(new Chart(document.getElementById("territoire"),{
@@ -129,7 +132,7 @@ charts.push(new Chart(document.getElementById("capacites"),{
 
 // zones non couvertes
 let z="";
-data.zones.forEach(e=>z+=`<li>${e}</li>`);
+data.zones.forEach(e=>z+=`<li>${esc(e)}</li>`);
 document.getElementById("zones").innerHTML=z;
 
 });

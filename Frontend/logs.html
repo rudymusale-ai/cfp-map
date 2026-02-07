@@ -64,23 +64,26 @@ async function fetchJsonOrFallback(url, fallback) {
   }
 }
 
+const esc = window.escapeHtml || ((v) => v);
+
 function load(){
 
 const u=user.value;
 const a=action.value;
 const d=date.value;
+const qs = `user=${encodeURIComponent(u)}&action=${encodeURIComponent(a)}&date=${encodeURIComponent(d)}`;
 
-fetchJsonOrFallback(`/logs?user=${u}&action=${a}&date=${d}`, () => AppData.getLogs({ user: u, action: a, date: d }))
+fetchJsonOrFallback(`/logs?${qs}`, () => AppData.getLogs({ user: u, action: a, date: d }))
 .then(data=>{
 
  let h="";
  data.forEach(l=>{
  h+=`
 <tr>
-<td>${l.user}</td>
-<td>${l.action}</td>
-<td>${l.target}</td>
-<td>${new Date(l.date).toLocaleString()}</td>
+<td>${esc(l.user)}</td>
+<td>${esc(l.action)}</td>
+<td>${esc(l.target)}</td>
+<td>${esc(new Date(l.date).toLocaleString())}</td>
 </tr>`;
  });
 

@@ -56,6 +56,8 @@ async function fetchJsonOrFallback(url, fallback) {
   }
 }
 
+const esc = window.escapeHtml || ((v) => v);
+
 function buildPinIcon(type){
   const isPublic = type === "public";
   const pinClass = isPublic ? "gm-pin--public" : "gm-pin--private";
@@ -74,9 +76,9 @@ fetchJsonOrFallback(`/centres/${id}`, () => AppData.getCentre(id))
 .then(c=>{
   if(!c) return;
   document.getElementById("info").innerHTML=`
-<b>${c.nom}</b><br>
-${c.adresse || ""}<br>
-${c.type}
+<b>${esc(c.nom)}</b><br>
+${esc(c.adresse || "")}<br>
+${esc(c.type)}
 `;
 
   document.getElementById("filieres").innerText=(c.filieres || []).join(", ");
