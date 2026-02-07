@@ -129,8 +129,8 @@ app.post('/auth/login', async (req, res) => {
     const token = jwt.sign(payload, jwtSecret, { expiresIn: '8h' });
     return res.json({ token });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'login_failed' });
+    console.error('LOGIN ERROR:', err);
+    return res.status(500).json(err);
   }
 });
 
