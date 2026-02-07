@@ -8,10 +8,10 @@
     "create-test-user": "node scripts/create_test_user.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "mysql2": "^3.3.0",
+    "bcryptjs": "^3.0.3",
     "dotenv": "^16.0.0",
-    "bcrypt": "^5.1.0",
-    "jsonwebtoken": "^9.0.0"
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.0",
+    "mysql2": "^3.3.0"
   }
 }
