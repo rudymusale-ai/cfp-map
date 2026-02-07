@@ -54,7 +54,7 @@ async function fetchJsonOrFallback(url, fallback) {
     }
 }
 
-const API_URL = "https://cfp-map-production-232a.up.railway.app";
+const API_BASE = window.API_BASE || "";
 const esc = window.escapeHtml || ((v) => v);
 
 const params = new URLSearchParams(location.search);
@@ -84,7 +84,7 @@ document.getElementById('saveBtn').addEventListener('click', async function(){
     btn.disabled = true;
     msg.style.color='#333'; msg.textContent='Envoi en cours...';
     try{
-        const base = (location.protocol === 'file:') ? API_URL : '';
+        const base = API_BASE || '';
         const res = await fetch(base + (editId ? '/users' : '/auth/register'),{
             method: editId ? 'PUT' : 'POST',
             headers:{'Content-Type':'application/json'},

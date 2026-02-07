@@ -1,5 +1,6 @@
 (function () {
   const API_URL = "https://cfp-map-production-232a.up.railway.app";
+  const API_BASE = (location.protocol === "file:" || location.port === "5500") ? API_URL : "";
   function escapeHtml(value) {
     return String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -10,6 +11,8 @@
   }
   if (typeof window !== "undefined") {
     window.escapeHtml = escapeHtml;
+    window.API_URL = API_URL;
+    window.API_BASE = API_BASE;
   }
   // Automatically attach JWT to same-origin API calls
   if (typeof window !== "undefined" && window.fetch && !window.__authFetchWrapped) {
@@ -26,7 +29,7 @@
       const isRelative = url.startsWith("/");
       const isSameOrigin = !url.startsWith("http://") && !url.startsWith("https://");
       const isApiAbsolute = url.startsWith(API_URL);
-      const isLiveServer = (location.port === "5500");
+      const hasApiBase = !!API_BASE;
       const apiPrefixes = [
         "/auth",
         "/me",
@@ -41,8 +44,8 @@
         "/health"
       ];
       const isApiCall = isRelative && apiPrefixes.some(p => url.startsWith(p));
-      if (isLiveServer && isApiCall) {
-        url = API_URL + url;
+      if (hasApiBase && isApiCall) {
+        url = API_BASE + url;
       }
 
       if ((isRelative || isSameOrigin || isApiAbsolute) && token && !headers.has("Authorization")) {
