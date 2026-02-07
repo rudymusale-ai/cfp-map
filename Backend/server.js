@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('./db');
@@ -9,21 +10,9 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// CORS for Live Server (127.0.0.1:5500 / localhost:5500)
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  const allowed = new Set([
-    'http://127.0.0.1:5500',
-    'http://localhost:5500'
-  ]);
-  if (origin && allowed.has(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  }
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
-  next();
-});
+app.use(cors({
+  origin: "*"
+}));
 
 // Serve the Frontend folder so HTML is available on the same origin (http://localhost:3000)
 const frontendPath = path.join(__dirname, '..', 'Frontend');

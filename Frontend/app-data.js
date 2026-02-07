@@ -29,7 +29,7 @@
       ];
       const isApiCall = isRelative && apiPrefixes.some(p => url.startsWith(p));
       if (isLiveServer && isApiCall) {
-        url = "http://localhost:3000" + url;
+        url = "https://cfp-map-production.up.railway.app" + url;
       }
 
       if ((isRelative || isSameOrigin) && token && !headers.has("Authorization")) {
@@ -48,7 +48,7 @@
       banner.style.cssText = "position:fixed;bottom:12px;right:12px;background:#111827;color:#fff;padding:8px 10px;border-radius:8px;font-size:12px;z-index:9999;opacity:.9;display:flex;gap:8px;align-items:center";
 
       const text = document.createElement("span");
-      text.textContent = "Mode Live Server : API -> http://localhost:3000";
+      text.textContent = "Mode Live Server : API -> https://cfp-map-production.up.railway.app";
 
       const closeBtn = document.createElement("button");
       closeBtn.type = "button";
