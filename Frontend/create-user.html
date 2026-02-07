@@ -81,7 +81,7 @@ document.getElementById('saveBtn').addEventListener('click', async function(){
     btn.disabled = true;
     msg.style.color='#333'; msg.textContent='Envoi en cours...';
     try{
-        const base = (location.protocol === 'file:') ? 'https://cfp-map-production.up.railway.app' : '';
+        const base = (location.protocol === 'file:') ? 'https://cfp-map-production-232a.up.railway.app' : '';
         const res = await fetch(base + (editId ? '/users' : '/auth/register'),{
             method: editId ? 'PUT' : 'POST',
             headers:{'Content-Type':'application/json'},
