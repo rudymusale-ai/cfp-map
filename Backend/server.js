@@ -8,11 +8,6 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 const jwtSecret = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev_secret');
-const allowedOrigins = (process.env.CORS_ORIGINS || '')
-  .split(',')
-  .map(o => o.trim())
-  .filter(Boolean);
-
 if (!jwtSecret) {
   throw new Error('JWT_SECRET is required in production');
 }
@@ -21,14 +16,7 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
 
 app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    if (allowedOrigins.length === 0) {
-      if (process.env.NODE_ENV === 'production') return cb(null, false);
-      return cb(null, true);
-    }
-    return cb(null, allowedOrigins.includes(origin));
-  }
+  origin: "*"
 }));
 
 // Serve the Frontend folder so HTML is available on the same origin (http://localhost:3000)
