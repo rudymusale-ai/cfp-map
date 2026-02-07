@@ -1,6 +1,8 @@
 (function () {
   const API_URL = "https://cfp-map-production-232a.up.railway.app";
-  const API_BASE = (location.protocol === "file:" || location.port === "5500") ? API_URL : "";
+  const API_BASE = (typeof window !== "undefined" && Object.prototype.hasOwnProperty.call(window, "API_BASE"))
+    ? window.API_BASE
+    : API_URL;
   function escapeHtml(value) {
     return String(value ?? "")
       .replace(/&/g, "&amp;")
