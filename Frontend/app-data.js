@@ -30,7 +30,7 @@
 
       const isRelative = url.startsWith("/");
       const isSameOrigin = !url.startsWith("http://") && !url.startsWith("https://");
-      const isApiAbsolute = url.startsWith(API_URL);
+      const isApiAbsolute = (API_BASE && url.startsWith(API_BASE)) || url.startsWith(API_URL);
       const hasApiBase = !!API_BASE;
       const apiPrefixes = [
         "/auth",

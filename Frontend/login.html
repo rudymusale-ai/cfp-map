@@ -31,9 +31,11 @@
     </div>
 </div>
 
-<script src="app-data.js"></script>
+<script src="app-data.js?v=20260207"></script>
 <script>
-const API_BASE = window.API_BASE || "";
+const API_BASE = (Object.prototype.hasOwnProperty.call(window, "API_BASE"))
+    ? window.API_BASE
+    : "https://cfp-map-production-232a.up.railway.app";
 
 function mapServerError(raw) {
     const key = String(raw || "").trim();
@@ -70,9 +72,11 @@ function login() {
         })
     })
     .then(async res => {
-        const contentType = res.headers.get("content-type") || "";
-        const isJson = contentType.includes("application/json");
-        const data = isJson ? await res.json().catch(() => null) : null;
+        const text = await res.text();
+        let data = null;
+        if (text) {
+            try { data = JSON.parse(text); } catch (e) { data = null; }
+        }
         if (!res.ok) {
             let msg = "Erreur de connexion";
             if (res.status === 401 || res.status === 403) {
@@ -85,9 +89,15 @@ function login() {
                 msg = "Erreur serveur, réessayez plus tard";
             }
             if (data && data.error) msg = mapServerError(data.error);
+            if (!data && text && text.trim().startsWith("<")) {
+                msg = "API non atteinte (HTML renvoyé). Vérifiez l'URL de l'API.";
+            }
             throw new Error(msg);
         }
         if (!data || !data.token) {
+            if (!data && text && text.trim().startsWith("<")) {
+                throw new Error("API non atteinte (HTML renvoyé).");
+            }
             throw new Error("Réponse serveur non valide");
         }
         return data;
@@ -111,3 +121,4 @@ function login() {
 
 </body>
 </html>
+
