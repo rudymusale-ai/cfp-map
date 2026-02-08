@@ -2,6 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Centres de formation</title>
 <link rel="stylesheet" href="theme.css">
 
@@ -22,7 +23,7 @@
     <h2>Centres de Formation</h2>
     <p class="muted">Gérez les centres publics et privés du Haut‑Katanga.</p>
   </div>
-  <button class="btn btn-primary" onclick="location.href='create-centre.html'">➕ Ajouter centre</button>
+  <button class="btn btn-primary" id="btn-add-centre" onclick="location.href='create-centre.html'">➕ Ajouter centre</button>
 </div>
 
 <div class="filters card">
@@ -54,10 +55,12 @@
 let _role = "viewer";
 let _roleResolved = false;
 const _token = localStorage.getItem('token');
+const addBtn = document.getElementById('btn-add-centre');
+if (!_token && addBtn) addBtn.style.display = "none";
 const roleReady = _token
   ? fetch('/me',{headers:{'Authorization':'Bearer '+_token}})
       .then(r=>r.json())
-      .then(u=>{ _role = (u && u.role) ? u.role : "viewer"; _roleResolved = true; })
+      .then(u=>{ _role = (u && u.role) ? u.role : "viewer"; _roleResolved = true; if (_role === "viewer" && addBtn) addBtn.style.display = "none"; })
       .catch(()=>{ _roleResolved = true; })
   : Promise.resolve().then(()=>{ _roleResolved = true; });
 </script>
@@ -79,6 +82,7 @@ const esc = window.escapeHtml || ((v) => v);
  let html='';
  data.forEach(c=>{
  const canDelete = _roleResolved && _role === 'admin';
+ const canEdit = _roleResolved && _role !== 'viewer';
  html+=`
 <tr>
 <td>${esc(c.nom)}</td>
@@ -88,7 +92,7 @@ const esc = window.escapeHtml || ((v) => v);
 <td>${esc(c.statut)}</td>
 <td class="table-actions">
 <button class="btn btn-ghost" onclick="view(${Number(c.id) || 0})">Voir</button>
-<button class="btn btn-ghost" onclick="edit(${Number(c.id) || 0})">Modifier</button>
+${canEdit ? `<button class="btn btn-ghost" onclick="edit(${Number(c.id) || 0})">Modifier</button>` : ``}
 ${canDelete ? `<button class="btn btn-ghost" onclick="del(${Number(c.id) || 0})">Supprimer</button>` : ``}
 </td>
 </tr>`;
@@ -110,23 +114,9 @@ async function del(id){
 }
 </script>
 
+<script src="nav-auth.js"></script>
 <script>
-fetch('nav.html').then(r=>r.text()).then(html=>{
-	document.getElementById('nav-placeholder').innerHTML=html;
-	const logoutBtn = document.getElementById('nav-logout');
-	if(logoutBtn) logoutBtn.addEventListener('click', e=>{e.preventDefault(); localStorage.removeItem('token'); location.href='login.html';});
-	const token = localStorage.getItem('token');
-	if(token){
-		fetch('/me',{headers:{'Authorization':'Bearer '+token}}).then(r=>r.json()).then(u=>{
-			if(u && u.role==='admin'){
-				const ulink=document.getElementById('link-users');
-				const slink=document.getElementById('link-settings');
-				if(ulink) ulink.style.display='inline';
-				if(slink) slink.style.display='inline';
-			}
-		}).catch(()=>{});
-	}
-}).catch(()=>{});
+initNavAuth();
 </script>
 
 </body>

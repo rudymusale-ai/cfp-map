@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard</title>
 <link rel="stylesheet" href="theme.css">
 
@@ -131,32 +132,40 @@ function buildPinIcon(type){
     });
 }
 
-// Sécurité: rediriger si non connecté ou rôle invalide
+// Acces invite: sans token, on reste en mode viewer
 const _token = localStorage.getItem('token');
-if (!_token) {
-    window.location.href = "login.html";
+
+function applyViewerMode() {
+    const roleEl = document.getElementById("role");
+    if (roleEl) roleEl.innerText = "Rôle : viewer";
+    const newBtn = document.getElementById("newCenter");
+    if (newBtn) newBtn.style.display = "none";
 }
 
-const _meHeaders = { headers: { 'Authorization': 'Bearer ' + _token } };
-fetch('/me', _meHeaders)
-.then(async res => {
-    if (!res.ok) throw new Error("not_authorized");
-    const data = await res.json().catch(() => null);
-    if (!data || !data.role) throw new Error("no_role");
-    return data;
-})
-.then(user => {
-    document.getElementById("role").innerText = "Rôle : " + user.role;
+if (_token) {
+    const _meHeaders = { headers: { 'Authorization': 'Bearer ' + _token } };
+    fetch('/me', _meHeaders)
+    .then(async res => {
+        if (!res.ok) throw new Error("not_authorized");
+        const data = await res.json().catch(() => null);
+        if (!data || !data.role) throw new Error("no_role");
+        return data;
+    })
+    .then(user => {
+        document.getElementById("role").innerText = "Rôle : " + user.role;
 
-    // Masquer bouton Nouveau centre si viewer
-    if(user.role === "viewer"){
-        document.getElementById("newCenter").style.display = "none";
-    }
-})
-.catch(() => {
-    localStorage.removeItem('token');
-    window.location.href = "login.html";
-});
+        // Masquer bouton Nouveau centre si viewer
+        if(user.role === "viewer"){
+            document.getElementById("newCenter").style.display = "none";
+        }
+    })
+    .catch(() => {
+        localStorage.removeItem('token');
+        applyViewerMode();
+    });
+} else {
+    applyViewerMode();
+}
 
 // Simulation données dashboard
 fetchJsonOrFallback('/dashboard-data', () => AppData.getDashboardData())
@@ -209,26 +218,10 @@ fetchJsonOrFallback('/centres', () => AppData.getCentres())
 document.getElementById("mini-map").addEventListener("click", function () {
     location.href = "carte.html";
 });
-
-// show/hide admin links (use token if present)
-function showAdminLinksFromToken(){
-    const token = localStorage.getItem('token');
-    if(!token) return;
-    fetch('/me', { headers: { 'Authorization': 'Bearer ' + token } }).then(r=>r.json()).then(u=>{
-        if(u && u.role==='admin'){
-            document.getElementById('link-users').style.display='inline';
-            document.getElementById('link-settings').style.display='inline';
-        }
-    }).catch(()=>{});
-}
-
-// load shared nav then check role
-fetch('nav.html').then(r=>r.text()).then(html=>{
-    const holder = document.getElementById('nav-placeholder');
-    if (holder) holder.innerHTML = html;
-    showAdminLinksFromToken();
-}).catch(()=>{});
-
+</script>
+<script src="nav-auth.js"></script>
+<script>
+initNavAuth();
 </script>
 
 </body>

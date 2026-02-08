@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Statistiques CFP</title>
 <link rel="stylesheet" href="theme.css">
 
@@ -149,24 +150,10 @@ fetchJsonOrFallback('/settings/sousdivisions', () => AppData.getSettings("sousdi
   });
   loadStats();
 });
-
-fetch('nav.html').then(r=>r.text()).then(html=>{
-    document.getElementById('nav-placeholder').innerHTML=html;
-    const logoutBtn = document.getElementById('nav-logout');
-    if(logoutBtn) logoutBtn.addEventListener('click', e=>{e.preventDefault(); localStorage.removeItem('token'); location.href='login.html';});
-    const token = localStorage.getItem('token');
-    if(token){
-        fetch('/me',{headers:{'Authorization':'Bearer '+token}}).then(r=>r.json()).then(u=>{
-            if(u && u.role==='admin'){
-                const ulink=document.getElementById('link-users');
-                const slink=document.getElementById('link-settings');
-                if(ulink) ulink.style.display='inline';
-                if(slink) slink.style.display='inline';
-            }
-        }).catch(()=>{});
-    }
-}).catch(()=>{});
-
+</script>
+<script src="nav-auth.js"></script>
+<script>
+initNavAuth();
 </script>
 
 </body>

@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Connexion</title>
 <link rel="stylesheet" href="theme.css">
 </head>
@@ -48,6 +49,17 @@ function mapServerError(raw) {
         "login_failed": "Erreur serveur, rÃ©essayez plus tard"
     };
     return map[key] || raw;
+}
+
+function getSafeNext() {
+    const params = new URLSearchParams(location.search);
+    const next = params.get("next");
+    if (!next) return "";
+    if (next.startsWith("http") || next.startsWith("//")) return "";
+    if (next.includes("..") || next.includes("\\")) return "";
+    if (!/^[a-z0-9/_\-\.?=#&]+$/i.test(next)) return "";
+    if (!/\.html($|[?#])/.test(next)) return "";
+    return next;
 }
 
 function login() {
@@ -104,7 +116,8 @@ function login() {
     })
     .then(data => {
         localStorage.setItem("token", data.token);
-        window.location.href = "dashboard.html";
+        const next = getSafeNext();
+        window.location.href = next || "dashboard.html";
     })
     .catch(err => {
         console.error(err);
