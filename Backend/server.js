@@ -145,6 +145,23 @@ function authenticateToken(req, res, next) {
   });
 }
 
+function authenticateOptional(req, res, next) {
+  const auth = req.headers['authorization'];
+  const token = auth && auth.split(' ')[1];
+  if (!token) {
+    req.user = { role: 'viewer', guest: true };
+    return next();
+  }
+  jwt.verify(token, jwtSecret, (err, user) => {
+    if (err) {
+      req.user = { role: 'viewer', guest: true };
+      return next();
+    }
+    req.user = user;
+    next();
+  });
+}
+
 function requireRole(roles) {
   return (req, res, next) => {
     const role = req.user && req.user.role;
@@ -169,7 +186,7 @@ app.get('/me', async (req, res) => {
 });
 
 // Dashboard stats
-app.get('/dashboard-data', authenticateToken, async (req, res) => {
+app.get('/dashboard-data', authenticateOptional, async (req, res) => {
   try {
     const [totalRows] = await pool.query('SELECT COUNT(*) AS total FROM centres');
     const [publicRows] = await pool.query("SELECT COUNT(*) AS total FROM centres WHERE type='public'");
@@ -187,7 +204,7 @@ app.get('/dashboard-data', authenticateToken, async (req, res) => {
 });
 
 // Centres CRUD
-app.get('/centres', authenticateToken, async (req, res) => {
+app.get('/centres', authenticateOptional, async (req, res) => {
   try {
     const [rows] = await pool.query(`
       SELECT c.id, c.nom, c.type, c.capacite, c.statut_agrement, c.adresse,
@@ -232,7 +249,7 @@ app.get('/centres', authenticateToken, async (req, res) => {
   }
 });
 
-app.get('/centres/:id', authenticateToken, async (req, res) => {
+app.get('/centres/:id', authenticateOptional, async (req, res) => {
   try {
     const id = req.params.id;
     const [rows] = await pool.query(`
@@ -459,7 +476,7 @@ app.delete('/users/:id', authenticateToken, requireRole(['admin']), async (req, 
 });
 
 // Settings
-app.get('/settings/filieres', authenticateToken, requireRole(['admin','superviseur']), async (req, res) => {
+app.get('/settings/filieres', authenticateOptional, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT id, nom FROM filieres ORDER BY id DESC');
     return res.json(rows);
@@ -469,7 +486,7 @@ app.get('/settings/filieres', authenticateToken, requireRole(['admin','supervise
   }
 });
 
-app.get('/settings/sousdivisions', authenticateToken, requireRole(['admin']), async (req, res) => {
+app.get('/settings/sousdivisions', authenticateOptional, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT id, nom FROM sous_divisions ORDER BY id DESC');
     return res.json(rows);
@@ -590,7 +607,7 @@ app.get('/settings/backup', authenticateToken, requireRole(['admin']), async (re
 });
 
 // Stats
-app.get('/stats', authenticateToken, async (req, res) => {
+app.get('/stats', authenticateOptional, async (req, res) => {
   try {
     const sousdivision = req.query.sousdivision;
     const params = [];
